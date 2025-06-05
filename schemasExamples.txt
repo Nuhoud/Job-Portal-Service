@@ -1,0 +1,40 @@
+JobOfferSchema
+
+{
+  _id: ObjectId,
+  title: string,
+  companyId: ObjectId,
+  workPlaceType: 'Remote'| 'On-site',
+  jobType: 'Full-Time'| 'Part-Time'| 'Contract'| 'Freelance'| 'Internship',
+  jobLocation: string,
+  description: string,
+  requirements: string[],
+  salaryRange: { min: number, max: number, currency: string },
+  tags: string[],
+  postedAt: Date,
+  deadline: Date,
+  status: "active" | "closed" | "expired"
+}
+
+Application
+
+{
+  _id: ObjectId,
+  jobId: ObjectId,
+  userId: string,
+  resume: string,
+  appliedAt: Date,
+  status: "pending" | "accepted" | "rejected",
+  profileSnapshot: {
+    name: string,
+    email?: string,
+    mobile?:string,
+    basic:Basic
+    education: any[],
+    experience: any[],
+    skills: string[],
+    goals?: string[]
+  }
+}
+
+
