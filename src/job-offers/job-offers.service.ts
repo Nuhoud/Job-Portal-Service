@@ -84,23 +84,24 @@ export class JobOffersService {
     return this.findAll(activeFilters, pagination);
   }
 
-  //Find job offers by employer
+  // Find job offers by employer
   async findByEmployer(
     employerId: string,
     filters: JobOfferFiltersDto = {},
     pagination: PaginationOptionsDto = {}
-  ): Promise<{
-    data: JobOfferDocument[];
-    total: number;
-    page: number;
-    totalPages: number;
-  }> {
-    const employerFilters: JobOfferFiltersDto = {
-      ...filters,
-      employerId,
-    };
+  ): Promise<{ data: JobOfferDocument[]; total: number; page: number; totalPages: number; } | Error> {
 
-    return this.findAll(employerFilters, pagination);
+    try {
+      const employerFilters: JobOfferFiltersDto = {
+        ...filters,
+        employerId,
+      };
+  
+      return this.findAll(employerFilters, pagination);  
+    }catch(error){
+      throw new NotFoundException('Job offer not found');
+    }
+    
   }
 
   // Find one job offer by ID
