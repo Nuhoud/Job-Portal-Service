@@ -90,18 +90,6 @@ export class JobOffer {
   })
   status: string;
 
-  @Prop({ 
-    type: [String], 
-    default: [],
-    validate: {
-      validator: function(tags: string[]) {
-        return tags.every(tag => tag.trim().length > 0);
-      },
-      message: 'Tags cannot be empty strings'
-    }
-  })
-  tags: string[];
-
   // Additional useful fields
   @Prop({ 
     type: Number, 
@@ -131,7 +119,6 @@ JobOfferSchema.index({ status: 1 });
 JobOfferSchema.index({ workPlaceType: 1 });
 JobOfferSchema.index({ jobType: 1 });
 JobOfferSchema.index({ jobLocation: 1 });
-JobOfferSchema.index({ tags: 1 });
 JobOfferSchema.index({ postedAt: -1 });
 JobOfferSchema.index({ deadline: 1 });
 JobOfferSchema.index({ 'salaryRange.min': 1, 'salaryRange.max': 1 });
