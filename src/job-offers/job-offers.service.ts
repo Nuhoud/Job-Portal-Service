@@ -1,10 +1,11 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException,InternalServerErrorException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { JobOffer, JobOfferDocument } from './entities/job-offer.entity';
 import { CreateJobOfferDto } from './dto/create-job-offer.dto';
 import { JobOfferFiltersDto } from './dto/jobOfferFilters.dto'
 import { PaginationOptionsDto } from './dto/pagination.dto';
+import { UpdateJobOfferDto } from './dto/update-job-offer.dto';
 
 
 @Injectable()
@@ -13,12 +14,13 @@ export class JobOffersService {
     @InjectModel(JobOffer.name) private jobOfferModel: Model<JobOfferDocument>,
   ) {}
 
-  //Create a new job offer
-  async create(createJobOfferDto: CreateJobOfferDto, employerId: string): Promise<JobOfferDocument> {
+  //Create a new job offer - checked 1
+  async create(createJobOfferDto: CreateJobOfferDto, employerId: string, companyName: string): Promise<JobOfferDocument> {
     try {
       const jobOffer = new this.jobOfferModel({
         ...createJobOfferDto,
         employerId: new Types.ObjectId(employerId),
+        companyName,
         postedAt: new Date(),
       });
 
@@ -28,7 +30,7 @@ export class JobOffersService {
     }
   }
 
-  //Find all job offers with filters and pagination
+  //Find all job offers with filters and pagination - checked 1
   async findAll(filters: JobOfferFiltersDto = {}, pagination: PaginationOptionsDto = {}) : 
     Promise<{ data: JobOfferDocument[]; total: number; page: number; totalPages: number; }> {
 
@@ -47,35 +49,37 @@ export class JobOffersService {
     sortOptions[sortBy] = sortOrder === 'desc' ? -1 : 1;
 
     const skip = (page - 1) * limit;
-
-    const [data, total] = await Promise.all([
-      this.jobOfferModel
-        .find(query)
-        .sort(sortOptions)
-        .skip(skip)
-        .limit(limit)
-        .exec(),
-      this.jobOfferModel.countDocuments(query)
-    ]);
-
-    return {
-      data,
-      total,
-      page,
-      totalPages: Math.ceil(total / limit)
-    };
+    try {
+      const [data, total] = await Promise.all([
+        this.jobOfferModel
+          .find(query)
+          .sort(sortOptions)
+          .skip(skip)
+          .limit(limit)
+          .exec(),
+        this.jobOfferModel.countDocuments(query)
+      ]);
+  
+      return {
+        data,
+        total,
+        page,
+        totalPages: Math.ceil(total / limit)
+      };
+      
+    }catch(error){
+      throw new InternalServerErrorException('Failed to fetch job offers');
+    }
   }
 
-  // Find all active job offers
-  async findActive(
-    filters: JobOfferFiltersDto = {},
-    pagination: PaginationOptionsDto = {}
-  ): Promise<{
+  // Find all active job offers - checked 1
+  async findActive( filters: JobOfferFiltersDto = {}, pagination: PaginationOptionsDto = {}) : Promise<{
     data: JobOfferDocument[];
     total: number;
     page: number;
     totalPages: number;
   }> {
+
     const activeFilters: JobOfferFiltersDto = {
       ...filters,
       status: 'active',
@@ -84,12 +88,9 @@ export class JobOffersService {
     return this.findAll(activeFilters, pagination);
   }
 
-  // Find job offers by employer
-  async findByEmployer(
-    employerId: string,
-    filters: JobOfferFiltersDto = {},
-    pagination: PaginationOptionsDto = {}
-  ): Promise<{ data: JobOfferDocument[]; total: number; page: number; totalPages: number; } | Error> {
+  // Find job offers by employerId - checked 1
+  async findByEmployer( employerId: string, filters: JobOfferFiltersDto = {}, pagination: PaginationOptionsDto = {}): Promise<{
+     data: JobOfferDocument[]; total: number; page: number; totalPages: number; } | Error> {
 
     try {
       const employerFilters: JobOfferFiltersDto = {
@@ -101,18 +102,12 @@ export class JobOffersService {
     }catch(error){
       throw new NotFoundException('Job offer not found');
     }
-    
   }
 
-  // Find one job offer by ID
+  // Find one job offer by its ID - checked 1
   async findOne(id: string): Promise<JobOfferDocument> {
     try {
-      if (!Types.ObjectId.isValid(id)) {
-        throw new BadRequestException('Invalid job offer ID');
-      }
-  
       const jobOffer = await this.jobOfferModel.findById(id).exec();
-      
       if (!jobOffer) {
         throw new NotFoundException('Job offer not found');
       }
@@ -123,22 +118,12 @@ export class JobOffersService {
     }
   }
 
-  // Update a job offer
-  async update(
-    id: string,
-    updateJobOfferDto: Partial<CreateJobOfferDto>,
-    employerId: string,
-    role: string,
-  ): Promise<JobOfferDocument> {
-
-    if (!Types.ObjectId.isValid(id)) {
-      throw new BadRequestException('Invalid job offer ID');
-    }
-
+  // Update a job offer - checked 1
+  async update(id: string,updateJobOfferDto: UpdateJobOfferDto,employerId: string,role: string,): Promise<JobOfferDocument> {
     const jobOffer = await this.findOne(id);
 
     // Verify ownership
-    if (jobOffer.employerId.toString() !== employerId || role !== 'admin') {
+    if (jobOffer.employerId.toString() !== employerId && role !== 'admin') {
       throw new ForbiddenException('unauthorized access to update');
     }
 
@@ -147,24 +132,30 @@ export class JobOffersService {
       throw new BadRequestException('Cannot update expired or closed job offers');
     }
 
-    const updatedJobOffer = await this.jobOfferModel
-      .findByIdAndUpdate(id, updateJobOfferDto, { new: true, runValidators: true })
-      .exec();
-
-    if (!updatedJobOffer) {
-      throw new NotFoundException('Job offer not found');
+    try {
+      const updatedJobOffer = await this.jobOfferModel
+        .findByIdAndUpdate(id, updateJobOfferDto, {
+          new: true,
+          runValidators: true,
+        })
+        .exec();
+    
+      if (!updatedJobOffer) {
+        throw new NotFoundException('Job offer not found');
+      }
+    
+      return updatedJobOffer;
+    } catch (error) {
+      if (error.name === 'ValidationError') {
+        throw new BadRequestException(error.message);
+      }
+    
+      throw new InternalServerErrorException('Failed to update job offer');
     }
-
-    return updatedJobOffer;
   }
 
-  //Update job offer status
-  async updateStatus(
-    id: string,
-    status: string,
-    employerId: string,
-    role:string
-  ): Promise<JobOfferDocument> {
+  //Update job offer status - checked 1
+  async updateStatus(id: string,status: string,employerId: string,role:string): Promise<JobOfferDocument> {
 
     const validStatuses = ['active', 'closed', 'expired', 'draft'];
     
@@ -175,113 +166,107 @@ export class JobOffersService {
     const jobOffer = await this.findOne(id);
 
     // Verify ownership
-    if (jobOffer.employerId.toString() !== employerId || role !== 'admin') {
+    if (jobOffer.employerId.toString() !== employerId && role !== 'admin') {
       throw new ForbiddenException('unauthorized access to update');
     }
 
-    jobOffer.status = status;
-    return await jobOffer.save();
+    try{
+
+      jobOffer.status = status;
+      return await jobOffer.save();
+
+    }catch(error){
+      throw new InternalServerErrorException('Failed to update job offer status');
+    }
   }
 
-  // Delete a job offer
+  // Delete a job offer - checked 1
   async remove(id: string, employerId: string, role:string): Promise<void> {
-    if (!Types.ObjectId.isValid(id)) {
-      throw new BadRequestException('Invalid job offer ID');
-    }
 
     const jobOffer = await this.findOne(id);
 
     // Verify ownership
-    if (jobOffer.employerId.toString() !== employerId || role !== 'admin') {
+    if (jobOffer.employerId.toString() !== employerId && role !== 'admin') {
       throw new ForbiddenException('unauthorized access to delete job offers');
     }
 
-    await this.jobOfferModel.findByIdAndDelete(id).exec();
+    try {
+      await this.jobOfferModel.findByIdAndDelete(id).exec();
+    }catch(error){
+      throw new InternalServerErrorException('Failed to delete job offer');
+    }
   }
 
-  // Increment applications count for a job offer
+  // Increment applications count for a job offer - checked 1
   async incrementApplicationsCount(id: string): Promise<JobOfferDocument> {
+
     const jobOffer = await this.findOne(id);
     
     if (jobOffer.status !== 'active') {
       throw new BadRequestException('Cannot apply to inactive job offers');
     }
 
-    // Fixed: Use direct increment instead of calling non-existent method
-    jobOffer.applicationsCount = (jobOffer.applicationsCount || 0) + 1;
-    return await jobOffer.save();
+    try{
+      // Fixed: Use direct increment instead of calling non-existent method
+      jobOffer.applicationsCount = (jobOffer.applicationsCount || 0) + 1;
+      return await jobOffer.save();
+    }catch(error){
+      throw new InternalServerErrorException('Failed to increment applications count');
+    }
   }
 
-  // Search job offers by text
-  async searchJobOffers(
-    searchTerm: string,
-    filters: JobOfferFiltersDto = {},
-    pagination: PaginationOptionsDto = {}
-  ): Promise<{
+  // Search job offers by text- checked 1
+  async searchJobOffers(searchTerm: string, filters: JobOfferFiltersDto = {},pagination: PaginationOptionsDto = {} ): Promise<{
     data: JobOfferDocument[];
     total: number;
     page: number;
     totalPages: number;
   }> {
-    const searchFilters = {
-      ...filters,
-      $or: [
-        { title: { $regex: searchTerm, $options: 'i' } },
-        { description: { $regex: searchTerm, $options: 'i' } },
-        { skillsRequired: { $in: [new RegExp(searchTerm, 'i')] } },
-        { requirements: { $elemMatch: { $regex: searchTerm, $options: 'i' } } }
-      ]
-    };
+    try{
+      const searchFilters = {
+        ...filters,
+        $or: [
+          { title: { $regex: searchTerm, $options: 'i' } },
+          { description: { $regex: searchTerm, $options: 'i' } },
+          { skillsRequired: { $in: [new RegExp(searchTerm, 'i')] } },
+          { requirements: { $elemMatch: { $regex: searchTerm, $options: 'i' } } }
+        ]
+      };
 
-    const {
-      page = 1,
-      limit = 10,
-      sortBy = 'postedAt',
-      sortOrder = 'desc'
-    } = pagination;
+      const {
+        page = 1,
+        limit = 10,
+        sortBy = 'postedAt',
+        sortOrder = 'desc'
+      } = pagination;
 
-    const sortOptions: any = {};
-    sortOptions[sortBy] = sortOrder === 'desc' ? -1 : 1;
+      const sortOptions: any = {};
+      sortOptions[sortBy] = sortOrder === 'desc' ? -1 : 1;
 
-    const skip = (page - 1) * limit;
+      const skip = (page - 1) * limit;
 
-    const [data, total] = await Promise.all([
-      this.jobOfferModel
-        .find(searchFilters)
-        .sort(sortOptions)
-        .skip(skip)
-        .limit(limit)
-        .exec(),
-      this.jobOfferModel.countDocuments(searchFilters)
-    ]);
+      const [data, total] = await Promise.all([
+        this.jobOfferModel
+          .find(searchFilters)
+          .sort(sortOptions)
+          .skip(skip)
+          .limit(limit)
+          .exec(),
+        this.jobOfferModel.countDocuments(searchFilters)
+      ]);
 
-    return {
-      data,
-      total,
-      page,
-      totalPages: Math.ceil(total / limit)
-    };
+      return {
+        data,
+        total,
+        page,
+        totalPages: Math.ceil(total / limit)
+      };
+    }catch(error){
+      console.log(error);
+      throw new InternalServerErrorException('Failed to search job offers');
+    }
   }
 
-  // Get job offers by location
-  async findByLocation(
-    location: string,
-    filters: JobOfferFiltersDto = {},
-    pagination: PaginationOptionsDto = {}
-  ): Promise<{
-    data: JobOfferDocument[];
-    total: number;
-    page: number;
-    totalPages: number;
-  }> {
-    const locationFilters: JobOfferFiltersDto = {
-      ...filters,
-      jobLocation: location, // Fixed: Use string instead of RegExp
-      status: 'active',
-    };
-
-    return this.findAll(locationFilters, pagination);
-  }
 
   // Get job offers statistics for an employer
   async getEmployerStatistics(employerId: string): Promise<{
@@ -292,23 +277,31 @@ export class JobOffersService {
     draft: number;
     totalApplications: number;
   }> {
+
     const employerObjectId = new Types.ObjectId(employerId);
 
+    // Use MongoDB aggregation to calculate statistics for the employer
     const stats = await this.jobOfferModel.aggregate([
+      // Filter job offers by the given employerId
       { $match: { employerId: employerObjectId } },
       {
         $group: {
-          _id: null,
-          total: { $sum: 1 },
+          _id: null, // No grouping key needed; aggregate across all matched offers
+          total: { $sum: 1 }, // Total number of job offers 
+          // Count of active offers
           active: { $sum: { $cond: [{ $eq: ['$status', 'active'] }, 1, 0] } },
+          // Count of closed offers
           closed: { $sum: { $cond: [{ $eq: ['$status', 'closed'] }, 1, 0] } },
+          // Count of closed offers
           expired: { $sum: { $cond: [{ $eq: ['$status', 'expired'] }, 1, 0] } },
+          // Count of draft offers
           draft: { $sum: { $cond: [{ $eq: ['$status', 'draft'] }, 1, 0] } },
+          // Sum of all applications for the employer’s offers
           totalApplications: { $sum: '$applicationsCount' }
         }
       }
     ]);
-
+    // Return the aggregated statistics or default values if none found
     return stats[0] || {
       total: 0,
       active: 0,
@@ -320,28 +313,32 @@ export class JobOffersService {
   }
 
   // Get job offers that are expiring soon (within specified days)
-  async getExpiringSoon(
-    employerId: string,
-    days: number = 7
-  ): Promise<JobOfferDocument[]> {
-    const futureDate = new Date();
-    futureDate.setDate(futureDate.getDate() + days);
+  async getExpiringSoon( employerId: string, days: number = 7 ): Promise<JobOfferDocument[]> {
+    try{
+      // Create a future date X days from today
+      const futureDate = new Date();
+      futureDate.setDate(futureDate.getDate() + days);
 
-    return this.jobOfferModel
-      .find({
-        employerId: new Types.ObjectId(employerId),
-        status: 'active',
-        deadline: {
-          $gte: new Date(),
-          $lte: futureDate
-        }
-      })
-      .sort({ deadline: 1 })
-      .exec();
+      // Find job offers for the employer that are active and will expire within X days
+      const jobs = await this.jobOfferModel
+        .find({
+          employerId: new Types.ObjectId(employerId),
+          status: 'active', // Only include active job offers
+          deadline: {
+            $gte: new Date(), // Deadline must be today or later
+            $lte: futureDate // ...but within the next X days
+          }
+        })
+        .sort({ deadline: 1 }) // Sort offers by closest deadline first
+        .exec();
+
+      return jobs;
+    }catch(error){
+      throw new InternalServerErrorException('Failed to search job offers');
+    }
   }
 
   // Update expired job offers
-
   async updateExpiredJobOffers(): Promise<number> {
     const result = await this.jobOfferModel.updateMany(
       {

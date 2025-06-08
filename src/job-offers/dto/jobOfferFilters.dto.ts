@@ -30,6 +30,14 @@ export class JobOfferFiltersDto {
   jobLocation?: string;
 
   @ApiPropertyOptional({
+    description: 'Filter by company Name (case-insensitive partial match)',
+    example: 'Google'
+  })
+  @IsOptional()
+  @IsString()
+  companyName?: string;
+
+  @ApiPropertyOptional({
     description: 'Filter by experience levels',
     type: [String],
     enum: ['Entry Level', 'Intership', 'Mid Level', 'Senior Level', 'Associate', 'Dirctor', 'Executive'],

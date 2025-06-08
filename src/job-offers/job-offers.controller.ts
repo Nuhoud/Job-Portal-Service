@@ -17,7 +17,7 @@ import { ApiTags,ApiBearerAuth } from '@nestjs/swagger';
 export class JobOffersController {
   constructor(private readonly jobOffersService: JobOffersService) {}
 
-  // Create a new job offer (Employer only)
+  // Create a new job offer (Employer only) - checked 1
   @Post()
   @UseGuards(RolesGuard)
   @Roles(Role.EMPLOYER, Role.ADMIN)
@@ -27,10 +27,11 @@ export class JobOffersController {
     @Request() req: Request
   ) {
     const employerId = req['user']._id;
-    return this.jobOffersService.create(createJobOfferDto, employerId);
+    const companyName = req['user'].company;
+    return this.jobOffersService.create(createJobOfferDto, employerId, companyName);
   }
 
-  // Get all job offers with filters and pagination (Public)
+  // Get all job offers with filters and pagination (Public) - checked 1
   @Get()
   async findAll(
     @Query() filters: JobOfferFiltersDto,
@@ -38,6 +39,7 @@ export class JobOffersController {
   ) {
     return this.jobOffersService.findAll(filters, pagination);
   }
+  
 
   // Get all active job offers (Public)
   @Get('active')
@@ -83,15 +85,6 @@ export class JobOffersController {
     return this.jobOffersService.searchJobOffers(searchTerm, filters, pagination);
   }
 
-  // Get job offers by location (Public)
-  @Get('location/:location')
-  async findByLocation(
-    @Param('location') location: string,
-    @Query() filters: JobOfferFiltersDto,
-    @Query() pagination: PaginationOptionsDto
-  ) {
-    return this.jobOffersService.findByLocation(location, filters, pagination);
-  }
 
   // Get employer statistics (Employer/Admin only)
   @Get('statistics/employer')

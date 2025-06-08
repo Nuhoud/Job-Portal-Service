@@ -31,15 +31,18 @@ export class JobOffer {
   @Prop({ required: true, trim: true })
   title: string;
 
+  @Prop({ type: mongoose.Schema.Types.ObjectId, required: true })
+  employerId: Types.ObjectId;
+  
+  @Prop({ required: true })
+  companyName: string;
+
   @Prop({ 
     type: [String],
     enum: ['Entry Level', 'Intership', 'Mid Level', 'Senior Level', 'Associate', 'Dirctor', 'Executive'],
     default: []
   })
   experienceLevel: string[];
-
-  @Prop({ type: mongoose.Schema.Types.ObjectId, required: true })
-  employerId: Types.ObjectId;
 
   @Prop({ required: true, enum: ['عن بعد', 'في الشركة','مزيج'], default: 'عن بعد'})
   workPlaceType: string;
