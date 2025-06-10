@@ -45,8 +45,6 @@ export class JobOffersController {
 
 
   // Get all job offers with filters and pagination (Public) - checked 1
-  //@ApiQuery({name: 'filters',type: JobOfferFiltersDto,required: false,description: 'Filtering options for job offers'})
-  //@ApiQuery({name: 'pagination',type: PaginationOptionsDto,required: false,description: 'Pagination options (page, limit)'})
   @Get()
   async findAll( @Query() filters: JobOfferFiltersDto, @Query() pagination: PaginationOptionsDto ) {
     return this.jobOffersService.findAll(filters, pagination);
@@ -54,8 +52,6 @@ export class JobOffersController {
   
 
   // Get all active job offers (Public)
-  @ApiQuery({name: 'filters',type: JobOfferFiltersDto,required: false,description: 'Filtering options for job offers'})
-  @ApiQuery({name: 'pagination',type: PaginationOptionsDto,required: false,description: 'Pagination options (page, limit)'})
   @Get('active')
   async findActive( @Query() filters: JobOfferFiltersDto, @Query() pagination: PaginationOptionsDto) {
     return this.jobOffersService.findActive(filters, pagination);
@@ -63,8 +59,6 @@ export class JobOffersController {
 
 
   // Get job offers by employer (Employer)
-  @ApiQuery({name: 'filters',type: JobOfferFiltersDto,required: false,description: 'Filtering options for job offers'})
-  @ApiQuery({name: 'pagination',type: PaginationOptionsDto,required: false,description: 'Pagination options (page, limit)'})
   @Get('employer/my-jobs')
   @UseGuards(RolesGuard)
   @Roles(Role.EMPLOYER, Role.ADMIN)
@@ -75,8 +69,6 @@ export class JobOffersController {
 
 
   // Get job offers by specific employer ID (Admin only)
-  @ApiQuery({name: 'filters',type: JobOfferFiltersDto,required: false,description: 'Filtering options for job offers'})
-  @ApiQuery({name: 'pagination',type: PaginationOptionsDto,required: false,description: 'Pagination options (page, limit)'})
   @ApiParam({ name: 'employerId', description: 'employer ID', type: 'string' })
   @Get('employer/:employerId')
   @UseGuards(RolesGuard)
@@ -87,8 +79,6 @@ export class JobOffersController {
 
 
   // Search job offers by text (Public)
-  @ApiQuery({name: 'filters',type: JobOfferFiltersDto,required: false,description: 'Filtering options for job offers'})
-  @ApiQuery({name: 'pagination',type: PaginationOptionsDto,required: false,description: 'Pagination options (page, limit)'})
   @ApiQuery({name: 'q',type: String ,required: true,description: 'Search term'})
   @Get('search')
   async searchJobOffers( @Query('q') searchTerm: string, @Query() filters: JobOfferFiltersDto, @Query() pagination: PaginationOptionsDto ) {

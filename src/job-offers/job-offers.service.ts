@@ -44,7 +44,8 @@ export class JobOffersService {
 
     // create MongoDB query based on the filters
     const query = this.buildFilterQuery(filters);
-    
+
+
     const sortOptions: any = {};
     sortOptions[sortBy] = sortOrder === 'desc' ? -1 : 1;
 
@@ -223,8 +224,16 @@ export class JobOffersService {
     totalPages: number;
   }> {
     try{
+
+/*       const cleanFilters = Object.fromEntries(
+        Object.entries(filters).filter(([_, value]) => value !== undefined)
+      );
+*/
+      //console.log(filters); 
+      const query = this.buildFilterQuery(filters);
+
       const searchFilters = {
-        ...filters,
+        ...query,
         $or: [
           { title: { $regex: searchTerm, $options: 'i' } },
           { description: { $regex: searchTerm, $options: 'i' } },
