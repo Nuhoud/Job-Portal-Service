@@ -361,92 +361,98 @@ export class JobOffersService {
     jobTypeDistribution: Array<{ type: string; count: number }>;
     workPlaceTypeDistribution: Array<{ type: string; count: number }>;
   }> {
-    const matchStage = employerId 
-      ? { $match: { employerId: new Types.ObjectId(employerId) } }
-      : { $match: {} };
-
-    const analytics = await this.jobOfferModel.aggregate([
-      matchStage,
-      {
-        $facet: {
-          totalStats: [
-            {
-              $group: {
-                _id: null,
-                totalJobs: { $sum: 1 },
-                activeJobs: { $sum: { $cond: [{ $eq: ['$status', 'active'] }, 1, 0] } },
-                totalApplications: { $sum: '$applicationsCount' },
-                avgMinSalary: { $avg: '$salaryRange.min' },
-                avgMaxSalary: { $avg: '$salaryRange.max' }
-              }
-            }
-          ],
-          topSkills: [
-            { $unwind: '$skillsRequired' },
-            {
-              $group: {
-                _id: '$skillsRequired',
-                count: { $sum: 1 }
-              }
-            },
-            { $sort: { count: -1 } },
-            { $limit: 10 },
-            {
-              $project: {
-                skill: '$_id',
-                count: 1,
-                _id: 0
-              }
-            }
-          ],
-          jobTypeDistribution: [
-            {
-              $group: {
-                _id: '$jobType',
-                count: { $sum: 1 }
-              }
-            },
-            {
-              $project: {
-                type: '$_id',
-                count: 1,
-                _id: 0
-              }
-            }
-          ],
-          workPlaceTypeDistribution: [
-            {
-              $group: {
-                _id: '$workPlaceType',
-                count: { $sum: 1 }
-              }
-            },
-            {
-              $project: {
-                type: '$_id',
-                count: 1,
-                _id: 0
-              }
-            }
-          ]
-        }
-      }
-    ]);
-
-    const result = analytics[0];
     
-    return {
-      totalJobs: result.totalStats[0]?.totalJobs || 0,
-      activeJobs: result.totalStats[0]?.activeJobs || 0,
-      totalApplications: result.totalStats[0]?.totalApplications || 0,
-      averageSalary: {
-        min: result.totalStats[0]?.avgMinSalary || 0,
-        max: result.totalStats[0]?.avgMaxSalary || 0
-      },
-      topSkills: result.topSkills || [],
-      jobTypeDistribution: result.jobTypeDistribution || [],
-      workPlaceTypeDistribution: result.workPlaceTypeDistribution || []
-    };
+    try{
+        const matchStage = employerId 
+        ? { $match: { employerId: new Types.ObjectId(employerId) } }
+        : { $match: {} };
+
+      const analytics = await this.jobOfferModel.aggregate([
+        matchStage,
+        {
+          $facet: {
+            totalStats: [
+              {
+                $group: {
+                  _id: null,
+                  totalJobs: { $sum: 1 },
+                  activeJobs: { $sum: { $cond: [{ $eq: ['$status', 'active'] }, 1, 0] } },
+                  totalApplications: { $sum: '$applicationsCount' },
+                  avgMinSalary: { $avg: '$salaryRange.min' },
+                  avgMaxSalary: { $avg: '$salaryRange.max' }
+                }
+              }
+            ],
+            topSkills: [
+              { $unwind: '$skillsRequired' },
+              {
+                $group: {
+                  _id: '$skillsRequired',
+                  count: { $sum: 1 }
+                }
+              },
+              { $sort: { count: -1 } },
+              { $limit: 10 },
+              {
+                $project: {
+                  skill: '$_id',
+                  count: 1,
+                  _id: 0
+                }
+              }
+            ],
+            jobTypeDistribution: [
+              {
+                $group: {
+                  _id: '$jobType',
+                  count: { $sum: 1 }
+                }
+              },
+              {
+                $project: {
+                  type: '$_id',
+                  count: 1,
+                  _id: 0
+                }
+              }
+            ],
+            workPlaceTypeDistribution: [
+              {
+                $group: {
+                  _id: '$workPlaceType',
+                  count: { $sum: 1 }
+                }
+              },
+              {
+                $project: {
+                  type: '$_id',
+                  count: 1,
+                  _id: 0
+                }
+              }
+            ]
+          }
+        }
+      ]);
+
+      const result = analytics[0];
+      
+      return {
+        totalJobs: result.totalStats[0]?.totalJobs || 0,
+        activeJobs: result.totalStats[0]?.activeJobs || 0,
+        totalApplications: result.totalStats[0]?.totalApplications || 0,
+        averageSalary: {
+          min: result.totalStats[0]?.avgMinSalary || 0,
+          max: result.totalStats[0]?.avgMaxSalary || 0
+        },
+        topSkills: result.topSkills || [],
+        jobTypeDistribution: result.jobTypeDistribution || [],
+        workPlaceTypeDistribution: result.workPlaceTypeDistribution || []
+      };
+    }catch(error){
+      console.log(error);
+      throw new InternalServerErrorException('Failed to generate job analytics');
+    }
   }
 
   // Helper method to build filter query
@@ -455,6 +461,10 @@ export class JobOffersService {
 
     if (filters.workPlaceType) {
       query.workPlaceType = filters.workPlaceType;
+    }
+
+    if (filters.companyName){
+      query.companyName = filters.companyName;
     }
 
     if (filters.jobType) {

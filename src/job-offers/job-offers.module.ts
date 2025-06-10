@@ -6,6 +6,7 @@ import { JobOffer, JobOfferSchema } from './entities/job-offer.entity';
 import { APP_GUARD } from '@nestjs/core';
 import { AuthGuard } from '../auth/guards/auth.guard';
 
+
 @Module({
   imports:[
     MongooseModule.forFeature([{ name: JobOffer.name, schema: JobOfferSchema }]),

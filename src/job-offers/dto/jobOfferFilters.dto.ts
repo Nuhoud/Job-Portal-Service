@@ -3,6 +3,7 @@ import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class JobOfferFiltersDto {
+
   @ApiPropertyOptional({
     description: 'Filter by work place type',
     enum: ['عن بعد', 'في الشركة', 'مزيج'],
@@ -11,6 +12,7 @@ export class JobOfferFiltersDto {
   @IsOptional()
   @IsEnum(['عن بعد', 'في الشركة', 'مزيج'])
   workPlaceType?: string;
+
 
   @ApiPropertyOptional({
     description: 'Filter by job type',
@@ -21,6 +23,7 @@ export class JobOfferFiltersDto {
   @IsEnum(['دوام كامل', 'دوام جزئي', 'عقد', 'مستقل', 'تدريب'])
   jobType?: string;
 
+
   @ApiPropertyOptional({
     description: 'Filter by job location (case-insensitive partial match)',
     example: 'Damascus'
@@ -29,6 +32,7 @@ export class JobOfferFiltersDto {
   @IsString()
   jobLocation?: string;
 
+
   @ApiPropertyOptional({
     description: 'Filter by company Name (case-insensitive partial match)',
     example: 'Google'
@@ -36,6 +40,7 @@ export class JobOfferFiltersDto {
   @IsOptional()
   @IsString()
   companyName?: string;
+
 
   @ApiPropertyOptional({
     description: 'Filter by experience levels',
@@ -48,6 +53,7 @@ export class JobOfferFiltersDto {
   @IsEnum(['Entry Level', 'Intership', 'Mid Level', 'Senior Level', 'Associate', 'Dirctor', 'Executive'], { each: true })
   experienceLevel?: string[];
 
+
   @ApiPropertyOptional({
     description: 'Filter by required skills',
     type: [String],
@@ -57,6 +63,7 @@ export class JobOfferFiltersDto {
   @IsArray()
   @IsString({ each: true })
   skillsRequired?: string[];
+
 
   @ApiPropertyOptional({
     description: 'Minimum salary range',
@@ -69,6 +76,7 @@ export class JobOfferFiltersDto {
   @Min(0)
   salaryMin?: number;
 
+  
   @ApiPropertyOptional({
     description: 'Maximum salary range',
     minimum: 0,

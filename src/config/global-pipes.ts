@@ -4,8 +4,16 @@ import { ValidationError } from 'class-validator';
 export const GlobalPipes = [
   new ValidationPipe({
     whitelist: true,
-    forbidNonWhitelisted: true,
+    forbidNonWhitelisted: false,
     transform: true,
+    transformOptions: {
+      enableImplicitConversion: true,
+    },
+    // This is the key setting - skip missing properties
+    skipMissingProperties: true,
+    // Allow empty values for optional properties
+    skipNullProperties: false,
+    skipUndefinedProperties: false,
     exceptionFactory: (errors: ValidationError[]) => {
       const formattedErrors = {};
 
