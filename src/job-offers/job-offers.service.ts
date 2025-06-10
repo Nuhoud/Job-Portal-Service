@@ -327,7 +327,7 @@ export class JobOffersService {
       // Create a future date X days from today
       const futureDate = new Date();
       futureDate.setDate(futureDate.getDate() + days);
-
+      
       // Find job offers for the employer that are active and will expire within X days
       const jobs = await this.jobOfferModel
         .find({

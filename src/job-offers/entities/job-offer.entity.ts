@@ -183,7 +183,10 @@ JobOfferSchema.statics.findByLocation = function(location: string) {
 JobOfferSchema.set('toJSON', {
   virtuals: true,
   transform: (doc, ret) => {
+    delete ret.id;
     delete ret.__v;
+    delete ret.createdAt;
+    delete ret.updatedAt;
     return ret;
   },
 });

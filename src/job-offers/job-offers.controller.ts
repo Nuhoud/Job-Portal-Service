@@ -15,7 +15,7 @@ import {
 import { ApiBearerAuth, ApiBody, ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiTags, ApiResponse,ApiParam, ApiQuery } from '@nestjs/swagger';
 import { JobOffersService } from './job-offers.service';
 import { CreateJobOfferDto } from './dto/create-job-offer.dto';
-import { UpdateJobOfferDto } from './dto/update-job-offer.dto';
+import { UpdateJobOfferDto, UpdateJobStatusDto } from './dto/update-job-offer.dto';
 import { JobOfferFiltersDto } from './dto/jobOfferFilters.dto';
 import { PaginationOptionsDto } from './dto/pagination.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -30,7 +30,7 @@ import { RolesGuard } from '../auth/guards/roles/roles.guard';
 export class JobOffersController {
   constructor(private readonly jobOffersService: JobOffersService) {}
 
-  // Create a new job offer (Employer only) - checked 1
+  // Create a new job offer (Employer only) - checked2
   @ApiBody({ type:CreateJobOfferDto , description: 'create job offer data' })
   @Post()
   @UseGuards(RolesGuard)
@@ -44,21 +44,21 @@ export class JobOffersController {
   }
 
 
-  // Get all job offers with filters and pagination (Public) - checked 1
+  // Get all job offers with filters and pagination (Public) - checked2
   @Get()
   async findAll( @Query() filters: JobOfferFiltersDto, @Query() pagination: PaginationOptionsDto ) {
     return this.jobOffersService.findAll(filters, pagination);
   }
   
 
-  // Get all active job offers (Public)
+  // Get all active job offers (Public) - checked2
   @Get('active')
   async findActive( @Query() filters: JobOfferFiltersDto, @Query() pagination: PaginationOptionsDto) {
     return this.jobOffersService.findActive(filters, pagination);
   }
 
 
-  // Get job offers by employer (Employer)
+  // Get job offers by employer (Employer) - checked2
   @Get('employer/my-jobs')
   @UseGuards(RolesGuard)
   @Roles(Role.EMPLOYER, Role.ADMIN)
@@ -68,7 +68,7 @@ export class JobOffersController {
   }
 
 
-  // Get job offers by specific employer ID (Admin only)
+  // Get job offers by specific employer ID (Admin only) - checked2
   @ApiParam({ name: 'employerId', description: 'employer ID', type: 'string' })
   @Get('employer/:employerId')
   @UseGuards(RolesGuard)
@@ -78,7 +78,7 @@ export class JobOffersController {
   }
 
 
-  // Search job offers by text (Public)
+  // Search job offers by text (Public) - checked2
   @ApiQuery({name: 'q',type: String ,required: true,description: 'Search term'})
   @Get('search')
   async searchJobOffers( @Query('q') searchTerm: string, @Query() filters: JobOfferFiltersDto, @Query() pagination: PaginationOptionsDto ) {
@@ -86,7 +86,7 @@ export class JobOffersController {
   }
 
 
-  // Get employer statistics (Employer/Admin only)
+  // Get employer statistics (Employer/Admin only) - checked2
   @Get('statistics/employer')
   @UseGuards(RolesGuard)
   @Roles(Role.EMPLOYER, Role.ADMIN)
@@ -95,7 +95,7 @@ export class JobOffersController {
     return this.jobOffersService.getEmployerStatistics(employerId);
   }
 
-  // Get employer statistics by ID (Admin only)
+  // Get employer statistics by ID (Admin only) - checked2
   @ApiParam({ name: 'employerId', description: 'employer ID', type: 'string' })
   @Get('statistics/employer/:employerId')
   @UseGuards(RolesGuard)
@@ -104,7 +104,7 @@ export class JobOffersController {
     return this.jobOffersService.getEmployerStatistics(employerId);
   }
 
-  // Get job offers expiring soon (Employer)
+  // Get job offers expiring soon (Employer) - checked2
   @ApiQuery({name: 'days',type: Number,required: false,description: 'number of days after'})
   @Get('expiring-soon')
   @UseGuards(RolesGuard)
@@ -114,7 +114,7 @@ export class JobOffersController {
     return this.jobOffersService.getExpiringSoon(employerId, days);
   }
 
-  // Get analytics (Admin only for all, Employer for own)
+  // Get analytics (Admin only for all, Employer for own) - checked2
   @ApiQuery({name: 'employerId',type: String,required: false})
   @Get('analytics')
   @UseGuards(RolesGuard)
@@ -135,7 +135,7 @@ export class JobOffersController {
     }
   }
 
-  // Update expired job offers (Admin only - typically called by cron job)
+  // Update expired job offers (Admin only - typically called by cron job) - checked2
   @Patch('update-expired')
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN)
@@ -144,14 +144,14 @@ export class JobOffersController {
     return { message: `Updated ${count} expired job offers` };
   }
 
-  // Get single job offer by ID (Public)
+  // Get single job offer by ID (Public) - checked2
   @ApiParam({ name: 'id', description: 'job offer ID', type: 'string' })
   @Get(':id')
   async findOne(@Param('id') id: string) {
     return this.jobOffersService.findOne(id);
   }
 
-  // Update job offer (Employer/Admin only)
+  // Update job offer (Employer/Admin only) - checked2
   @ApiBody({ type:UpdateJobOfferDto , description: 'update job offer data' })
   @ApiParam({ name: 'id', description: 'job offer ID', type: 'string' })
   @Patch(':id')
@@ -164,9 +164,9 @@ export class JobOffersController {
   }
 
 
-  // Update job offer status (Employer/Admin only)
+  // Update job offer status (Employer/Admin only)- checked2
   @ApiParam({ name: 'id', description: 'job offer ID', type: 'string' })
-  @ApiBody({ type: String , description: 'status' })
+  @ApiBody({ type: UpdateJobStatusDto ,description:'job offer status'})
   @Patch(':id/status')
   @UseGuards(RolesGuard)
   @Roles(Role.EMPLOYER, Role.ADMIN)
@@ -177,7 +177,7 @@ export class JobOffersController {
   }
 
 
-  // Delete job offer (Employer/Admin only)
+  // Delete job offer (Employer/Admin only)- checked2
   @ApiParam({ name: 'id', description: 'job offer ID', type: 'string' })
   @Delete(':id')
   @UseGuards(RolesGuard)
