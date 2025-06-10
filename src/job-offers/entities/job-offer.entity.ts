@@ -38,11 +38,11 @@ export class JobOffer {
   companyName: string;
 
   @Prop({ 
-    type: [String],
+    type: String,
     enum: ['Entry Level', 'Intership', 'Mid Level', 'Senior Level', 'Associate', 'Dirctor', 'Executive'],
-    default: []
+    default: 'Senior Level'
   })
-  experienceLevel: string[];
+  experienceLevel: string;
 
   @Prop({ required: true, enum: ['عن بعد', 'في الشركة','مزيج'], default: 'عن بعد'})
   workPlaceType: string;

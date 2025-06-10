@@ -1,5 +1,5 @@
 import { IsOptional, IsString, IsNumber, IsArray, IsEnum, IsMongoId, Min } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class JobOfferFiltersDto {
@@ -44,20 +44,29 @@ export class JobOfferFiltersDto {
 
   @ApiPropertyOptional({
     description: 'Filter by experience levels',
-    type: [String],
+    type:String,
     enum: ['Entry Level', 'Intership', 'Mid Level', 'Senior Level', 'Associate', 'Dirctor', 'Executive'],
-    example: ['Mid Level', 'Senior Level']
+    example:'Senior Level'
   })
   @IsOptional()
-  @IsArray()
   @IsEnum(['Entry Level', 'Intership', 'Mid Level', 'Senior Level', 'Associate', 'Dirctor', 'Executive'], { each: true })
-  experienceLevel?: string[];
+  experienceLevel?: string;
 
 
   @ApiPropertyOptional({
     description: 'Filter by required skills',
     type: [String],
     example: ['JavaScript', 'Node.js', 'MongoDB']
+  })
+  @Transform(({ value }) => {
+    if (typeof value === 'string') {
+      try {
+        return JSON.parse(value);
+      } catch (e) {
+        return value;
+      }
+    }
+    return value;
   })
   @IsOptional()
   @IsArray()

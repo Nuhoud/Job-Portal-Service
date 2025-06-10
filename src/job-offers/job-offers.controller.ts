@@ -45,8 +45,8 @@ export class JobOffersController {
 
 
   // Get all job offers with filters and pagination (Public) - checked 1
-  @ApiQuery({name: 'filters',type: JobOfferFiltersDto,required: false,description: 'Filtering options for job offers'})
-  @ApiQuery({name: 'pagination',type: PaginationOptionsDto,required: false,description: 'Pagination options (page, limit)'})
+  //@ApiQuery({name: 'filters',type: JobOfferFiltersDto,required: false,description: 'Filtering options for job offers'})
+  //@ApiQuery({name: 'pagination',type: PaginationOptionsDto,required: false,description: 'Pagination options (page, limit)'})
   @Get()
   async findAll( @Query() filters: JobOfferFiltersDto, @Query() pagination: PaginationOptionsDto ) {
     return this.jobOffersService.findAll(filters, pagination);

@@ -475,8 +475,8 @@ export class JobOffersService {
       query.jobLocation = new RegExp(filters.jobLocation, 'i');
     }
 
-    if (filters.experienceLevel && filters.experienceLevel.length > 0) {
-      query.experienceLevel = { $in: filters.experienceLevel };
+    if (filters.experienceLevel ) {
+      query.experienceLevel = filters.experienceLevel ;
     }
 
     if (filters.skillsRequired && filters.skillsRequired.length > 0) {

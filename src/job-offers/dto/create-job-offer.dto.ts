@@ -86,15 +86,14 @@ export class CreateJobOfferDto {
         enum: ExperienceLevel,
         enumName: 'ExperienceLevel',
         isArray: true,
-        example: [ExperienceLevel.MID_LEVEL, ExperienceLevel.SENIOR_LEVEL],
-        type: [String]
+        example: ExperienceLevel.MID_LEVEL,
+        type: String
     })
-    @IsArray({ message: 'Experience level must be an array' })
     @IsEnum(ExperienceLevel, { 
         each: true, 
         message: 'Each experience level must be valid' 
     })
-    experienceLevel: ExperienceLevel[];
+    experienceLevel: ExperienceLevel;
 
     @ApiProperty({
         description: 'Work arrangement type',
