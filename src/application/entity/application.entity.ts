@@ -191,10 +191,16 @@ export class Application {
     userId : Types.ObjectId;
 
     @Prop({ type: User , required: true })
-    user:User;
+    userSnap:User;
 
     @Prop({ type: String , enum: ['pending', 'reviewed', 'accepted', 'rejected'],default: 'pending'})
     status: string;
+
+    @Prop({ type:String })
+    employerNote?:string;
+
+    @Prop({ type: Date, default: Date.now })
+    postedAt: Date;
 }
 export const ApplicationSchema = SchemaFactory.createForClass(Application);
 
@@ -202,4 +208,14 @@ export const ApplicationSchema = SchemaFactory.createForClass(Application);
 ApplicationSchema.index({ jobOfferId: 1 });
 ApplicationSchema.index({ userId: 1 });
 ApplicationSchema.index({ status: 1 });
-ApplicationSchema.index({ createdAt: -1 });
+ApplicationSchema.index({ postedAt: -1 });
+
+ApplicationSchema.set('toJSON', {
+  virtuals: true,
+  transform: (doc, ret) => {
+    delete ret.__v;
+    delete ret.createdAt;
+    delete ret.updatedAt;
+    return ret;
+  },
+});
