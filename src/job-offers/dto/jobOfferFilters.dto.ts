@@ -108,11 +108,11 @@ export class JobOfferFiltersDto {
 
   @ApiPropertyOptional({
     description: 'Filter by job offer status',
-    enum: ['active', 'closed', 'expired', 'draft'],
-    example: 'active'
+    enum: ['مفتوح', 'مغلق', 'منتهي الصلاحية', 'مسودة'],
+    example: 'مفتوح'
   })
   @IsOptional()
-  @IsEnum(['active', 'closed', 'expired'])
+  @IsEnum(['مفتوح', 'مغلق', 'منتهي الصلاحية', 'مسودة'])
   status?: string;
 
   @ApiPropertyOptional({

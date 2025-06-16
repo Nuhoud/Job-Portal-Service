@@ -3,21 +3,16 @@ import { ApiProperty } from '@nestjs/swagger';
 import { IsEnum, IsOptional, IsString } from 'class-validator'
 
 
-export enum ApplicationStatus {
-    PENDING = 'pending',
-    REVIEWED = 'reviewed',
-    ACCEPTED = 'accepted',
-    REJECTED = 'rejected'
-}
+
 
 export class UpdateApplicationStatusDto {
     @ApiProperty({ 
       description: 'New application status',
-      enum: ApplicationStatus,
-      example: ApplicationStatus.REVIEWED
+      enum: ['قيد المراجعة', 'تمت المراجعة', 'مقبول', 'مرفوض'],
+      example: 'تمت المراجعة'
     })
-    @IsEnum(ApplicationStatus)
-    status: ApplicationStatus;
+    @IsEnum(['قيد المراجعة', 'تمت المراجعة', 'مقبول', 'مرفوض'])
+    status: string;
   
     @ApiProperty({ 
       description: 'Optional note from employer/admin',

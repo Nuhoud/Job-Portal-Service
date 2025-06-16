@@ -158,7 +158,7 @@ export class JobOffersService {
   //Update job offer status - checked 1
   async updateStatus(id: string,status: string,employerId: string,role:string): Promise<JobOfferDocument> {
 
-    const validStatuses = ['active', 'closed', 'expired', 'draft'];
+    const validStatuses = ['مفتوح', 'مغلق', 'منتهي الصلاحية', 'مسودة'];
     
     if (!validStatuses.includes(status)) {
       throw new BadRequestException('Invalid status');
@@ -298,13 +298,13 @@ export class JobOffersService {
           _id: null, // No grouping key needed; aggregate across all matched offers
           total: { $sum: 1 }, // Total number of job offers 
           // Count of active offers
-          active: { $sum: { $cond: [{ $eq: ['$status', 'active'] }, 1, 0] } },
+          active: { $sum: { $cond: [{ $eq: ['$status', 'مفتوح'] }, 1, 0] } },
           // Count of closed offers
-          closed: { $sum: { $cond: [{ $eq: ['$status', 'closed'] }, 1, 0] } },
+          closed: { $sum: { $cond: [{ $eq: ['$status', 'مغلق'] }, 1, 0] } },
           // Count of closed offers
-          expired: { $sum: { $cond: [{ $eq: ['$status', 'expired'] }, 1, 0] } },
+          expired: { $sum: { $cond: [{ $eq: ['$status', 'منتهي الصلاحية'] }, 1, 0] } },
           // Count of draft offers
-          draft: { $sum: { $cond: [{ $eq: ['$status', 'draft'] }, 1, 0] } },
+          draft: { $sum: { $cond: [{ $eq: ['$status', 'مسودة'] }, 1, 0] } },
           // Sum of all applications for the employer’s offers
           totalApplications: { $sum: '$applicationsCount' }
         }

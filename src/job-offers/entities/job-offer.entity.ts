@@ -88,8 +88,8 @@ export class JobOffer {
 
   @Prop({ 
     required: true,
-    enum: ['active', 'closed', 'expired', 'draft'],
-    default: 'active'
+    enum: ['مفتوح', 'مغلق', 'منتهي الصلاحية', 'مسودة'],
+    default: 'مفتوح'
   })
   status: string;
 

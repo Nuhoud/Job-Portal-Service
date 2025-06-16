@@ -193,7 +193,7 @@ export class Application {
     @Prop({ type: User , required: true })
     userSnap:User;
 
-    @Prop({ type: String , enum: ['pending', 'reviewed', 'accepted', 'rejected'],default: 'pending'})
+    @Prop({ type: String , enum: ['قيد المراجعة', 'تمت المراجعة', 'مقبول', 'مرفوض'],default: 'قيد المراجعة'})
     status: string;
 
     @Prop({ type:String })

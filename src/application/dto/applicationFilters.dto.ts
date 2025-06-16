@@ -2,20 +2,16 @@ import { IsOptional, IsString, IsNumber, IsArray, IsEnum, IsMongoId, Min } from 
 import { Transform, Type } from 'class-transformer';
 import { ApiPropertyOptional,ApiProperty } from '@nestjs/swagger';
 
-export enum ApplicationStatus {
-    PENDING = 'pending',
-    REVIEWED = 'reviewed',
-    ACCEPTED = 'accepted',
-    REJECTED = 'rejected'
-}
+
 
 export class ApplicationFiltersDto {
 
   @ApiProperty({ 
     description: 'filter by application status',
-    enum: ApplicationStatus,
-    example: ApplicationStatus.REVIEWED
+    enum: ['قيد المراجعة', 'تمت المراجعة', 'مقبول', 'مرفوض'],
+    example: 'قيد المراجعة'
   })
-  @IsEnum(ApplicationStatus)
-  status: ApplicationStatus;
+  @IsEnum(['قيد المراجعة', 'تمت المراجعة', 'مقبول', 'مرفوض'])
+  status?: string;
+  
 }

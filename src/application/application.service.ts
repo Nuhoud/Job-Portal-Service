@@ -7,6 +7,8 @@ import { CreateApplicationDto } from './dto/create-application.dto';
 import { JobOffersService } from '../job-offers/job-offers.service';
 import { ApplicationFiltersDto } from './dto/applicationFilters.dto';
 import { PaginationOptionsDto } from './dto/pagination.dto';
+import {UpdateApplicationStatusDto} from './dto/update-application.dot'
+import { firstValueFrom } from 'rxjs';
 
 
 @Injectable()
@@ -47,12 +49,13 @@ export class ApplicationService {
         }
     }
 
-    async findAll(pagination: PaginationOptionsDto = {}): Promise<{
+    async findAll( filters: ApplicationFiltersDto = {}, pagination: PaginationOptionsDto = {}): Promise<{
         data: ApplicationDocument[];
         total: number;
         page: number;
         totalPages: number; }> 
     {
+
         const {
             page = 1,
             limit = 10,
@@ -60,27 +63,34 @@ export class ApplicationService {
             sortOrder = 'desc'
         } = pagination;
 
+        // create MongoDB query based on the filters
+        const query = this.buildFilterQuery(filters);
+
+
         const sortOptions: any = {};
         sortOptions[sortBy] = sortOrder === 'desc' ? -1 : 1;
 
         const skip = (page - 1) * limit;
-
-        const [data, total] = await Promise.all([
-            this.ApplicationModel
-              .find()
-              .sort(sortOptions)
-              .skip(skip)
-              .limit(limit)
-              .exec(),
-            this.ApplicationModel.countDocuments()
-        ]);
-        
-        return {
-            data,
-            total,
-            page,
-            totalPages: Math.ceil(total / limit)
-        };
+        try{
+            const [data, total] = await Promise.all([
+                this.ApplicationModel
+                  .find(query)
+                  .sort(sortOptions)
+                  .skip(skip)
+                  .limit(limit)
+                  .exec(),
+                this.ApplicationModel.countDocuments()
+            ]);
+            
+            return {
+                data,
+                total,
+                page,
+                totalPages: Math.ceil(total / limit)
+            };
+        }catch(error){
+            throw new InternalServerErrorException('Failed to fetch applications');
+        }
     }
 
     // find all apllication that applied to one Job offer by the job offer id
@@ -131,4 +141,41 @@ export class ApplicationService {
     }
 
 
+
+    async changeStatusEvent(application:ApplicationDocument){
+        await firstValueFrom(
+            this.kafkaClient.emit('job.application.statusChange', {
+                application
+            })
+        )
+    }
+
+
+    async changeStatus(id:string, updateApplicationStatus:UpdateApplicationStatusDto){
+        try{
+            const application = await this.ApplicationModel.findById(id).exec();
+            if(!application){
+                throw new NotFoundException('Application not found');
+            }
+            application.status = updateApplicationStatus.status;
+            application.employerNote = updateApplicationStatus.employerNote;
+            await application.save();
+            await this.changeStatusEvent(application)
+            return application;
+        }catch(error){
+            throw new NotFoundException('Application not found');
+        }
+    }
+
+
+
+    // Helper method to build filter query
+    private buildFilterQuery(filters: ApplicationFiltersDto): any {
+        const query: any = {};
+    
+        if (filters.status) {
+          query.status = filters.status;
+        }
+        return query;
+    }
 }
