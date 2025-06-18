@@ -31,35 +31,28 @@ export class PaginationOptionsDto {
     @IsNumber()
     @Min(1)
     limit?: number = 10;
-
-    // The field to be sorted by
+    
     @ApiPropertyOptional({
       description: 'Field to sort by',
       enum: [
-        'title',
         'postedAt',
-        'deadline',
-        'salaryRange.min',
-        'salaryRange.max',
-        'applicationsCount',
-        'jobLocation',
-        'experienceLevel',
-        'status'
+        'status',
+        'jobTitle',
+        'companyName',
+        'userSnap.name',
+        'userId'
       ],
       default: 'postedAt',
-      example: 'postedAt'
+      example: 'postedAt',
     })
     @IsOptional()
     @IsEnum([
-      'title',
       'postedAt',
-      'deadline',
-      'salaryRange.min',
-      'salaryRange.max',
-      'applicationsCount',
-      'jobLocation',
-      'experienceLevel',
-      'status'
+      'status',
+      'jobTitle',
+      'companyName',
+      'userSnap.name',
+      'userId'
     ])
     sortBy?: string = 'postedAt';
   
