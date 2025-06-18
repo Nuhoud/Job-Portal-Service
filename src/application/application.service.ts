@@ -19,6 +19,15 @@ export class ApplicationService {
         private jobOffersService: JobOffersService,
     ) {}
 
+    async sendKafkaEvent( topicName:string , value :any){
+        await firstValueFrom(
+            this.kafkaClient.emit(topicName, {
+                value
+            })
+        )
+    }
+
+
     async sumbitApplication(message: any){
         const {          
             jobOfferId,
@@ -27,15 +36,22 @@ export class ApplicationService {
             userSnap
         } = message;
 
-        this.createApplication(jobOfferId,userId,employerEmail, userSnap);
+        const apllication= await this.createApplication(jobOfferId,userId,employerEmail, userSnap);
+        await this.sendKafkaEvent('job.application.created',message)
     }
+
 
     async createApplication( jobOfferId:string, userId:string,employerEmail:string, userSnap : CreateApplicationDto){
         try {
-            
+            const jobOffer = await this.jobOffersService.findOne(jobOfferId);
+            if(!jobOffer){
+                throw new NotFoundException('no jobOffer with that id')
+            }
             const application = new this.ApplicationModel({
                 jobOfferId: new Types.ObjectId(jobOfferId),
                 userId: new Types.ObjectId(userId),
+                companyName: jobOffer.companyName,
+                jobTitle: jobOffer.title,
                 employerEmail,
                 userSnap
             });
@@ -94,26 +110,82 @@ export class ApplicationService {
     }
 
     // find all apllication that applied to one Job offer by the job offer id
-    async findAllByJobOfferId(jobOfferId:string): Promise<ApplicationDocument[]> {
+    async findAllByJobOfferId(jobOfferId:string, pagination: PaginationOptionsDto = {}): Promise<{
+        data: ApplicationDocument[];
+        total: number;
+        page: number;
+        totalPages: number; }> 
+    {
+        const {
+            page = 1,
+            limit = 10,
+            sortBy = 'postedAt',
+            sortOrder = 'desc'
+        } = pagination;
+
+        const sortOptions: any = {};
+        sortOptions[sortBy] = sortOrder === 'desc' ? -1 : 1;
+
+        const skip = (page - 1) * limit;
+
         try{
-            const applications = await this.ApplicationModel.find({jobOfferId:jobOfferId}).exec();
-            if(!applications){
-                throw new NotFoundException('Applications not found');
-            }
-            return applications;
+
+            const [data, total] = await Promise.all([
+                this.ApplicationModel
+                  .find({jobOfferId:jobOfferId})
+                  .sort(sortOptions)
+                  .skip(skip)
+                  .limit(limit)
+                  .exec(),
+                this.ApplicationModel.countDocuments()
+            ]);
+            
+            return {
+                data,
+                total,
+                page,
+                totalPages: Math.ceil(total / limit)
+            };
         }catch(error){
             throw new NotFoundException('Applications not found');
         }
     }
 
     // find all applications belongs to one user by the user id
-    async findAllByUserId(userId:string): Promise<ApplicationDocument[]> {
+    async findAllByUserId(userId:string,pagination: PaginationOptionsDto = {}): Promise<{
+        data: ApplicationDocument[];
+        total: number;
+        page: number;
+        totalPages: number; }> 
+    {
+        const {
+            page = 1,
+            limit = 10,
+            sortBy = 'postedAt',
+            sortOrder = 'desc'
+        } = pagination;
+
+        const sortOptions: any = {};
+        sortOptions[sortBy] = sortOrder === 'desc' ? -1 : 1;
+
+        const skip = (page - 1) * limit;
         try{
-            const applications = await this.ApplicationModel.find({userId:userId}).exec();
-            if(!applications){
-                throw new NotFoundException('Applications not found');
-            }
-            return applications;
+            const [data, total] = await Promise.all([
+                this.ApplicationModel
+                  .find({userId:userId})
+                  .sort(sortOptions)
+                  .skip(skip)
+                  .limit(limit)
+                  .exec(),
+                this.ApplicationModel.countDocuments()
+            ]);
+            
+            return {
+                data,
+                total,
+                page,
+                totalPages: Math.ceil(total / limit)
+            };
         }catch(error){
             throw new NotFoundException('Applications not found');
         }
@@ -141,16 +213,6 @@ export class ApplicationService {
     }
 
 
-
-    async changeStatusEvent(application:ApplicationDocument){
-        await firstValueFrom(
-            this.kafkaClient.emit('job.application.statusChange', {
-                application
-            })
-        )
-    }
-
-
     async changeStatus(id:string, updateApplicationStatus:UpdateApplicationStatusDto){
         try{
             const application = await this.ApplicationModel.findById(id).exec();
@@ -160,7 +222,9 @@ export class ApplicationService {
             application.status = updateApplicationStatus.status;
             application.employerNote = updateApplicationStatus.employerNote;
             await application.save();
-            await this.changeStatusEvent(application)
+
+            await this.sendKafkaEvent('job.application.statusChange',application);
+
             return application;
         }catch(error){
             throw new NotFoundException('Application not found');

@@ -187,6 +187,12 @@ export class Application {
     @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'JobOffer',required: true })
     jobOfferId: Types.ObjectId;
 
+    @Prop({ required: true })
+    companyName: string;
+
+    @Prop({ required: true })
+    jobTitle: string;
+
     @Prop({ type: mongoose.Schema.Types.ObjectId, required: true })
     userId : Types.ObjectId;
 

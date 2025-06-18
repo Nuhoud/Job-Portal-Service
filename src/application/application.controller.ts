@@ -40,8 +40,8 @@ export class ApplicationController {
   // GET /applications/job-offer/:jobOfferId - Applications for specific job
   @ApiParam({ name: 'jobOfferId', description: 'job offer ID', type: 'string' })
   @Get('job-offer/:jobOfferId')
-  async findAllByJobOfferId(@Param('jobOfferId') jobOfferId: string): Promise<ApplicationDocument[]> {
-    return this.applicationService.findAllByJobOfferId(jobOfferId);
+  async findAllByJobOfferId(@Param('jobOfferId') jobOfferId: string , @Query() pagination: PaginationOptionsDto) {
+    return this.applicationService.findAllByJobOfferId( jobOfferId,pagination );
   }
 
   // GET /applications/:id - Get specific application
@@ -63,9 +63,9 @@ export class ApplicationController {
   @Get('my-applications')
   @UseGuards(RolesGuard)
   @Roles(Role.USER)
-  async findMyApplications( @Request() req: Request) {
+  async findMyApplications( @Request() req: Request, @Query() pagination: PaginationOptionsDto) {
     const userId = req['user']._id;
-    return this.applicationService.findAllByUserId(userId);
+    return this.applicationService.findAllByUserId(userId,pagination);
   }
 
   // DELETE /applications/:id - Withdraw application
