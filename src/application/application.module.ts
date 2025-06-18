@@ -4,6 +4,7 @@ import { ApplicationController } from './application.controller';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Application,ApplicationSchema } from './entity/application.entity'
+import { JobOffersModule } from '../job-offers/job-offers.module';
 
 @Module({
   imports:[
@@ -23,6 +24,7 @@ import { Application,ApplicationSchema } from './entity/application.entity'
       },
     ]),
     MongooseModule.forFeature([{ name: Application.name, schema: ApplicationSchema }]),
+    JobOffersModule,
   ],
   controllers: [ApplicationController],
   providers: [ApplicationService],

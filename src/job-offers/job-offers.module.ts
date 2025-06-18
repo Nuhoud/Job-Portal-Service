@@ -22,5 +22,6 @@ import { AuthGuard } from '../auth/guards/auth.guard';
       useClass: AuthGuard,
     }
   ],
+  exports: [JobOffersService]
 })
 export class JobOffersModule {}
