@@ -6,7 +6,7 @@ import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-
+  app.enableCors();
   // Enable global pipes
   // Toggling the global pipes for validation and transformation across the app
   app.useGlobalPipes(...GlobalPipes);
