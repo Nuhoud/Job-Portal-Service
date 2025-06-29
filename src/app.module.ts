@@ -17,7 +17,7 @@ dotenv.config();
       secret: process.env.JWT_SECRET,
       signOptions: { expiresIn: '7d' },
     }),
-    MongooseModule.forRoot('mongodb://localhost:27017/nuhoudJobs'),
+    MongooseModule.forRoot(process.env.MONGODB_URL || 'mongodb://localhost:27017/nuhoudJobs'),
     JobOffersModule,
     // Load environment variables from the `.env` file and make ConfigService globally available across the entire application
     ConfigModule.forRoot({isGlobal: true}),

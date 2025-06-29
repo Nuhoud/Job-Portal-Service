@@ -5,7 +5,8 @@ import { ClientsModule, Transport } from '@nestjs/microservices';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Application,ApplicationSchema } from './entity/application.entity'
 import { JobOffersModule } from '../job-offers/job-offers.module';
-
+import * as dotenv from 'dotenv';
+dotenv.config();
 @Module({
   imports:[
     ClientsModule.register([
@@ -15,7 +16,7 @@ import { JobOffersModule } from '../job-offers/job-offers.module';
         options: {
           client: {
             clientId: 'jobportal',
-            brokers: ['localhost:9092'],
+            brokers: [process.env.KAFKA_URL || 'localhost:9092'],
           },
           consumer: {
             groupId: 'jobportal-consumer',

@@ -181,7 +181,7 @@ export class JobOffersController {
   @ApiParam({ name: 'id', description: 'job offer ID', type: 'string' })
   @Delete(':id')
   @UseGuards(RolesGuard)
-  @Roles(Role.EMPLOYER, Role.ADMIN)
+  @Roles(Role.ADMIN)
   @HttpCode(HttpStatus.NO_CONTENT)
   async remove( @Param('id') id: string, @Request() req: Request ) {
     const employerId = req['user']._id;

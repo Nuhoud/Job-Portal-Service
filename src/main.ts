@@ -3,6 +3,8 @@ import { AppModule } from './app.module';
 import { GlobalPipes } from './config/global-pipes';
 import { setupSwagger } from './config/swagger.config';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
+import * as dotenv from 'dotenv';
+dotenv.config();
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -21,7 +23,7 @@ async function bootstrap() {
       options: {
         client: {
           clientId: 'jobportal',
-          brokers: ['localhost:9092'],
+          brokers: [process.env.KAFKA_URL || 'localhost:9092'],
         },
         consumer: {
           groupId: 'jobportal-consumer',

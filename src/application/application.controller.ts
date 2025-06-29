@@ -40,11 +40,14 @@ export class ApplicationController {
   // GET /applications/job-offer/:jobOfferId - Applications for specific job
   @ApiParam({ name: 'jobOfferId', description: 'job offer ID', type: 'string' })
   @Get('job-offer/:jobOfferId')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN,Role.EMPLOYER)
   async findAllByJobOfferId(@Param('jobOfferId') jobOfferId: string , @Query() pagination: PaginationOptionsDto) {
     return this.applicationService.findAllByJobOfferId( jobOfferId,pagination );
   }
 
   // GET /applications/:id - Get specific application
+  
   @ApiParam({ name: 'id', description: 'application ID', type: 'string' })
   @Get(':id')
   async findOne(@Param('id') id: string): Promise<ApplicationDocument> {
