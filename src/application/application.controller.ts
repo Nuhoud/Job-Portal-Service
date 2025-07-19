@@ -24,7 +24,7 @@ import { RolesGuard } from '../auth/guards/roles/roles.guard';
 import { ApiBearerAuth, ApiBody, ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiTags, ApiResponse,ApiParam, ApiQuery } from '@nestjs/swagger';
 
 
-@ApiTags('JobOffer')
+@ApiTags('Application')
 @ApiBearerAuth()
 @Controller('application')
 export class ApplicationController {

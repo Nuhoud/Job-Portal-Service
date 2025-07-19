@@ -39,7 +39,7 @@ export class JobOffer {
 
   @Prop({ 
     type: String,
-    enum: ['Entry Level', 'Intership', 'Mid Level', 'Senior Level', 'Associate', 'Dirctor', 'Executive'],
+    enum: ['Entry Level', 'Internship', 'Mid Level', 'Senior Level', 'Associate', 'Director', 'Executive'],
     default: 'Senior Level'
   })
   experienceLevel: string;

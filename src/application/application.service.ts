@@ -37,6 +37,7 @@ export class ApplicationService {
         } = message;
 
         const apllication= await this.createApplication(jobOfferId,userId,employerEmail, userSnap);
+        console.log(apllication);
         await this.sendKafkaEvent('job.application.created',message)
     }
 

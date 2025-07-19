@@ -9,11 +9,11 @@ import { ApiProperty } from '@nestjs/swagger';
 // Enums for better type safety and reusability
 export enum ExperienceLevel {
     ENTRY_LEVEL = 'Entry Level',
-    INTERNSHIP = 'Internship', // Fixed typo
+    INTERNSHIP = 'Internship',
     MID_LEVEL = 'Mid Level',
     SENIOR_LEVEL = 'Senior Level',
     ASSOCIATE = 'Associate',
-    DIRECTOR = 'Director', // Fixed typo
+    DIRECTOR = 'Director',
     EXECUTIVE = 'Executive'
 }
 

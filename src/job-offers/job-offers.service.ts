@@ -203,7 +203,7 @@ export class JobOffersService {
 
     const jobOffer = await this.findOne(id);
     
-    if (jobOffer.status !== 'active') {
+    if (jobOffer.status !== 'مفتوح') {
       throw new BadRequestException('Cannot apply to inactive job offers');
     }
 
