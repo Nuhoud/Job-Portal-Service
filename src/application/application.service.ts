@@ -224,7 +224,7 @@ export class ApplicationService {
             application.employerNote = updateApplicationStatus.employerNote;
             await application.save();
 
-            await this.sendKafkaEvent('job.application.statusChange',application);
+            await this.sendKafkaEvent('job.application.statusChange', application.toObject());
 
             return application;
         }catch(error){
