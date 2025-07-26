@@ -111,46 +111,44 @@ export class ApplicationService {
     }
 
     // find all apllication that applied to one Job offer by the job offer id
-    async findAllByJobOfferId(jobOfferId:string, pagination: PaginationOptionsDto = {}): Promise<{
+    async findAllByJobOfferId(jobOfferId: string, pagination: PaginationOptionsDto = {},
+        ): Promise<{
         data: ApplicationDocument[];
         total: number;
         page: number;
-        totalPages: number; }> 
-    {
+        totalPages: number;
+        }> {
         const {
             page = 1,
             limit = 10,
             sortBy = 'postedAt',
-            sortOrder = 'desc'
+            sortOrder = 'desc',
         } = pagination;
 
-        const sortOptions: any = {};
-        sortOptions[sortBy] = sortOrder === 'desc' ? -1 : 1;
+        const sortOptions: Record<string, 1 | -1> = {
+            [sortBy]: sortOrder === 'desc' ? -1 : 1,
+        };
 
         const skip = (page - 1) * limit;
 
-        try{
+        const filter = { jobOfferId };
 
-            const [data, total] = await Promise.all([
-                this.ApplicationModel
-                  .find({jobOfferId:jobOfferId})
-                  .sort(sortOptions)
-                  .skip(skip)
-                  .limit(limit)
-                  .exec(),
-                this.ApplicationModel.countDocuments()
-            ]);
-            
-            return {
-                data,
-                total,
-                page,
-                totalPages: Math.ceil(total / limit)
-            };
-        }catch(error){
-            throw new NotFoundException('Applications not found');
+        const [data, total] = await Promise.all([
+            this.ApplicationModel.find(filter)
+            .sort(sortOptions)
+            .skip(skip)
+            .limit(limit)
+            .exec(),
+            this.ApplicationModel.countDocuments(filter),
+        ]);
+
+        return {
+            data,
+            total,
+            page,
+            totalPages: Math.ceil(total / limit) || 1, // تضمن دائمًا قيمة >= 1
+        };
         }
-    }
 
     // find all applications belongs to one user by the user id
     async findAllByUserId(userId:string,pagination: PaginationOptionsDto = {}): Promise<{
@@ -165,7 +163,7 @@ export class ApplicationService {
             sortBy = 'postedAt',
             sortOrder = 'desc'
         } = pagination;
-
+        //console.log(userId);
         const sortOptions: any = {};
         sortOptions[sortBy] = sortOrder === 'desc' ? -1 : 1;
 
@@ -178,9 +176,9 @@ export class ApplicationService {
                   .skip(skip)
                   .limit(limit)
                   .exec(),
-                this.ApplicationModel.countDocuments()
+                  this.ApplicationModel.countDocuments({ userId: userId })
             ]);
-            
+            //console.log(data);
             return {
                 data,
                 total,

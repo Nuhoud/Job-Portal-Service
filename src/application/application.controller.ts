@@ -30,6 +30,17 @@ import { ApiBearerAuth, ApiBody, ApiCreatedResponse, ApiOkResponse, ApiOperation
 export class ApplicationController {
   constructor(private readonly applicationService: ApplicationService) {}
   
+  // GET /applications/my-applications - User's own applications
+  @Get('my-applications')
+  @UseGuards(RolesGuard)
+  @Roles(Role.USER)
+  async findMyApplications( @Request() req: Request, @Query() pagination: PaginationOptionsDto) {
+    //console.log(req);
+    const userId = req['user']._id;
+    
+    return this.applicationService.findAllByUserId(userId,pagination);
+  }
+
   // Submit new application
   @EventPattern('job.application.submit')
   sumbitApplication(@Payload() message: any) {
@@ -62,14 +73,6 @@ export class ApplicationController {
     return this.applicationService.findAll(filters, pagination);
   }
 
-  // GET /applications/my-applications - User's own applications
-  @Get('my-applications')
-  @UseGuards(RolesGuard)
-  @Roles(Role.USER)
-  async findMyApplications( @Request() req: Request, @Query() pagination: PaginationOptionsDto) {
-    const userId = req['user']._id;
-    return this.applicationService.findAllByUserId(userId,pagination);
-  }
 
   // DELETE /applications/:id - Withdraw application
   @ApiParam({ name: 'id', description: 'application ID', type: 'string' })
