@@ -385,7 +385,7 @@ export class JobOffersService {
                 $group: {
                   _id: null,
                   totalJobs: { $sum: 1 },
-                  activeJobs: { $sum: { $cond: [{ $eq: ['$status', 'active'] }, 1, 0] } },
+                  activeJobs: { $sum: { $cond: [{ $eq: ['$status', 'مفتوح'] }, 1, 0] } },
                   totalApplications: { $sum: '$applicationsCount' },
                   avgMinSalary: { $avg: '$salaryRange.min' },
                   avgMaxSalary: { $avg: '$salaryRange.max' }
