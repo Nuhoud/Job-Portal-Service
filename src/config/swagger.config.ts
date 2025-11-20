@@ -7,6 +7,7 @@ export function setupSwagger(app: INestApplication): void {
     .setTitle('Nuhoud')
     .setDescription('The Nuhoud API description')
     .setVersion('1.0')
+    .addServer('/NuhoudJob') 
     .addTag('Nuhoud')
     .addBearerAuth()
     .build();
