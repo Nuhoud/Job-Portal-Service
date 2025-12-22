@@ -1,4 +1,4 @@
-import { Injectable,Inject, InternalServerErrorException,NotFoundException } from '@nestjs/common';
+import { Injectable,Inject, InternalServerErrorException,NotFoundException, ConflictException } from '@nestjs/common';
 import { ClientKafka,Payload } from '@nestjs/microservices';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Mongoose, Types } from 'mongoose';
@@ -36,17 +36,37 @@ export class ApplicationService {
             userSnap
         } = message;
 
-        const apllication= await this.createApplication(jobOfferId,userId,employerEmail, userSnap);
-        console.log(apllication);
-        await this.sendKafkaEvent('job.application.created',message)
+        try{
+            const application = await this.createApplication(jobOfferId,userId,employerEmail, userSnap);
+            console.log(application);
+            await this.sendKafkaEvent('job.application.created',message);
+        }catch(error){
+            const { reason, reasonCode } = this.getNotCreatedReason(error);
+            await this.sendKafkaEvent('job.application.notcreated',{
+                userId,
+                jobOfferId,
+                reason,
+                reasonCode,
+            });
+            console.error('[ApplicationService] Failed to create application', error);
+        }
     }
 
 
-    async createApplication( jobOfferId:string, userId:string,employerEmail:string, userSnap : CreateApplicationDto){
+    async createApplication( jobOfferId:string, userId:string,employerEmail:string, userSnap : CreateApplicationDto): Promise<ApplicationDocument>{
         try {
             const jobOffer = await this.jobOffersService.findOne(jobOfferId);
             if(!jobOffer){
                 throw new NotFoundException('no jobOffer with that id')
+            }
+
+            const existing = await this.ApplicationModel.findOne({
+                jobOfferId: new Types.ObjectId(jobOfferId),
+                userId: new Types.ObjectId(userId),
+            }).select('_id').lean().exec();
+
+            if(existing){
+                throw new ConflictException('Application already submitted for this job');
             }
             const application = new this.ApplicationModel({
                 jobOfferId: new Types.ObjectId(jobOfferId),
@@ -61,7 +81,11 @@ export class ApplicationService {
             await this.jobOffersService.incrementApplicationsCount(jobOfferId);
             // maybe we can do something like push notification later
             //this.kafkaClient.emit('application_created', application);
+            return application;
         } catch (error) {
+            if(error instanceof NotFoundException || error instanceof ConflictException){
+                throw error;
+            }
             throw new InternalServerErrorException('Failed to create application: ' + error.message);
         }
     }
@@ -148,7 +172,7 @@ export class ApplicationService {
             page,
             totalPages: Math.ceil(total / limit) || 1, // تضمن دائمًا قيمة >= 1
         };
-        }
+    }
 
     // find all applications belongs to one user by the user id
     async findAllByUserId(userId:string,pagination: PaginationOptionsDto = {}): Promise<{
@@ -240,5 +264,24 @@ export class ApplicationService {
           query.status = filters.status;
         }
         return query;
+    }
+
+    private getNotCreatedReason(error: any): { reason: string; reasonCode: string } {
+        if(error instanceof ConflictException){
+            return {
+                reasonCode: 'already_submitted',
+                reason: 'You have already submitted an application for this job.',
+            };
+        }
+        if(error instanceof NotFoundException){
+            return {
+                reasonCode: 'job_offer_not_found',
+                reason: 'The job offer could not be found.',
+            };
+        }
+        return {
+            reasonCode: 'create_failed',
+            reason: 'Your application could not be submitted. Please try again.',
+        };
     }
 }
