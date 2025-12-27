@@ -9,6 +9,7 @@ import { ApplicationFiltersDto } from './dto/applicationFilters.dto';
 import { PaginationOptionsDto } from './dto/pagination.dto';
 import {UpdateApplicationStatusDto} from './dto/update-application.dot'
 import { firstValueFrom } from 'rxjs';
+import { JobOfferDocument } from '../job-offers/entities/job-offer.entity';
 
 
 @Injectable()
@@ -37,9 +38,18 @@ export class ApplicationService {
         } = message;
 
         try{
-            const application = await this.createApplication(jobOfferId,userId,employerEmail, userSnap);
+            const { application, jobOffer } = await this.createApplication(jobOfferId,userId,employerEmail, userSnap);
             console.log(application);
-            await this.sendKafkaEvent('job.application.created',message);
+            const createdPayload = {
+                jobOfferId,
+                userId,
+                employerEmail,
+                employerId: jobOffer.employerId?.toString?.() ?? jobOffer.employerId,
+                companyName: jobOffer.companyName,
+                jobTitle: jobOffer.title,
+                userSnap,
+            };
+            await this.sendKafkaEvent('job.application.created',createdPayload);
         }catch(error){
             const { reason, reasonCode } = this.getNotCreatedReason(error);
             await this.sendKafkaEvent('job.application.notcreated',{
@@ -53,7 +63,7 @@ export class ApplicationService {
     }
 
 
-    async createApplication( jobOfferId:string, userId:string,employerEmail:string, userSnap : CreateApplicationDto): Promise<ApplicationDocument>{
+    async createApplication( jobOfferId:string, userId:string,employerEmail:string, userSnap : CreateApplicationDto): Promise<{ application: ApplicationDocument; jobOffer: JobOfferDocument }>{
         try {
             const jobOffer = await this.jobOffersService.findOne(jobOfferId);
             if(!jobOffer){
@@ -81,7 +91,7 @@ export class ApplicationService {
             await this.jobOffersService.incrementApplicationsCount(jobOfferId);
             // maybe we can do something like push notification later
             //this.kafkaClient.emit('application_created', application);
-            return application;
+            return { application, jobOffer };
         } catch (error) {
             if(error instanceof NotFoundException || error instanceof ConflictException){
                 throw error;
