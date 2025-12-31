@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException,InternalServerErrorException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException,InternalServerErrorException, Inject } from '@nestjs/common';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { JobOffer, JobOfferDocument } from './entities/job-offer.entity';
@@ -6,13 +7,63 @@ import { CreateJobOfferDto } from './dto/create-job-offer.dto';
 import { JobOfferFiltersDto } from './dto/jobOfferFilters.dto'
 import { PaginationOptionsDto } from './dto/pagination.dto';
 import { UpdateJobOfferDto } from './dto/update-job-offer.dto';
+import { Cache } from 'cache-manager';
+import { DEFAULT_CACHE_TTL_MS, jobOfferCacheKeys } from '../cache/cache.utils';
+import { ConfigService } from '@nestjs/config';
 
 
 @Injectable()
 export class JobOffersService {
+  private readonly cacheTtlSeconds: number;
+
   constructor(
     @InjectModel(JobOffer.name) private jobOfferModel: Model<JobOfferDocument>,
-  ) {}
+    @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
+    private readonly configService: ConfigService,
+  ) {
+    this.cacheTtlSeconds = Number(
+      this.configService.get('CACHE_TTL_MS') ?? DEFAULT_CACHE_TTL_MS,
+    );
+  }
+
+  private async getJobOfferById(
+    id: string,
+    options?: { lean?: boolean },
+  ): Promise<JobOfferDocument | JobOffer> {
+    const query = this.jobOfferModel.findById(id);
+    const jobOffer = options?.lean ? await query.lean().exec() : await query.exec();
+
+    if (!jobOffer) {
+      throw new NotFoundException('Job offer not found');
+    }
+
+    return jobOffer as JobOfferDocument | JobOffer;
+  }
+
+  private async clearJobOfferCaches(extraKeys: string[] = []) {
+    const cacheAny = this.cacheManager as any;
+    const store: { keys?: () => Promise<string[]> } | undefined =
+      cacheAny?.store ?? cacheAny?.stores?.[0];
+    const keysToClear = new Set<string>(extraKeys.filter(Boolean));
+
+    if (store?.keys) {
+      try {
+        const cachedKeys = await store.keys();
+        cachedKeys
+          .filter((key) => key.startsWith('job-offers:'))
+          .forEach((key) => keysToClear.add(key));
+      } catch {
+        // ignore key enumeration errors
+      }
+    }
+
+    if (keysToClear.size === 0) {
+      await this.cacheManager.clear();
+      return;
+    }
+
+    await Promise.all(Array.from(keysToClear).map((key) => this.cacheManager.del(key)));
+  }
 
   //Create a new job offer - checked 1
   async create(createJobOfferDto: CreateJobOfferDto, employerId: string, companyName: string): Promise<JobOfferDocument> {
@@ -24,58 +75,64 @@ export class JobOffersService {
         postedAt: new Date(),
       });
 
-      return await jobOffer.save();
+      const savedJobOffer = await jobOffer.save();
+      await this.clearJobOfferCaches([
+        jobOfferCacheKeys.detail(savedJobOffer._id.toString()),
+      ]);
+
+      return savedJobOffer;
     } catch (error) {
       throw new BadRequestException('Failed to create job offer: ' + error.message);
     }
   }
 
   //Find all job offers with filters and pagination - checked 1
-  async findAll(filters: JobOfferFiltersDto = {}, pagination: PaginationOptionsDto = {}) : 
-    Promise<{ data: JobOfferDocument[]; total: number; page: number; totalPages: number; }> {
-
-    // Destructuring pagination (with default values)
-    const {
-      page = 1,
-      limit = 10,
-      sortBy = 'postedAt',
-      sortOrder = 'desc'
-    } = pagination;
-
-    // create MongoDB query based on the filters
+  async findAll(
+    filters: JobOfferFiltersDto = {},
+    pagination: PaginationOptionsDto = {},
+  ): Promise<{ data: JobOffer[]; total: number; page: number; totalPages: number }> {
+    const { page = 1, limit = 10, sortBy = 'postedAt', sortOrder = 'desc' } = pagination;
     const query = this.buildFilterQuery(filters);
-
-
-    const sortOptions: any = {};
-    sortOptions[sortBy] = sortOrder === 'desc' ? -1 : 1;
-
+    const sortOptions: Record<string, 1 | -1> = {
+      [sortBy]: sortOrder === 'desc' ? -1 : 1,
+    };
     const skip = (page - 1) * limit;
+    const cacheKey = jobOfferCacheKeys.list(query, { page, limit, sortBy, sortOrder });
+
+    const cached = await this.cacheManager.get<{
+      data: JobOffer[];
+      total: number;
+      page: number;
+      totalPages: number;
+    }>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
     try {
       const [data, total] = await Promise.all([
-        this.jobOfferModel
-          .find(query)
-          .sort(sortOptions)
-          .skip(skip)
-          .limit(limit)
-          .exec(),
-        this.jobOfferModel.countDocuments(query)
+        this.jobOfferModel.find(query).sort(sortOptions).skip(skip).limit(limit).lean().exec(),
+        this.jobOfferModel.countDocuments(query),
       ]);
-  
-      return {
+
+      const payload = {
         data,
         total,
         page,
-        totalPages: Math.ceil(total / limit)
+        totalPages: Math.ceil(total / limit),
       };
-      
-    }catch(error){
+
+      await this.cacheManager.set(cacheKey, payload, this.cacheTtlSeconds);
+
+      return payload;
+    } catch (error) {
       throw new InternalServerErrorException('Failed to fetch job offers');
     }
   }
 
   // Find all active job offers - checked 1
   async findActive( filters: JobOfferFiltersDto = {}, pagination: PaginationOptionsDto = {}) : Promise<{
-    data: JobOfferDocument[];
+    data: JobOffer[];
     total: number;
     page: number;
     totalPages: number;
@@ -90,33 +147,26 @@ export class JobOffersService {
   }
 
   // Find job offers by employerId - checked 1
-  async findByEmployer( employerId: string, filters: JobOfferFiltersDto = {}, pagination: PaginationOptionsDto = {}): Promise<{
-     data: JobOfferDocument[]; total: number; page: number; totalPages: number; } | Error> {
+  async findByEmployer(
+    employerId: string,
+    filters: JobOfferFiltersDto = {},
+    pagination: PaginationOptionsDto = {},
+  ): Promise<{ data: JobOffer[]; total: number; page: number; totalPages: number }> {
+    const employerFilters: JobOfferFiltersDto = {
+      ...filters,
+      employerId,
+    };
 
-    try {
-      const employerFilters: JobOfferFiltersDto = {
-        ...filters,
-        employerId,
-      };
-  
-      return this.findAll(employerFilters, pagination);  
-    }catch(error){
-      throw new NotFoundException('Job offer not found');
-    }
+    return this.findAll(employerFilters, pagination);
   }
 
   // Find one job offer by its ID - checked 1
   async findOne(id: string): Promise<JobOfferDocument> {
-    try {
-      const jobOffer = await this.jobOfferModel.findById(id).exec();
-      if (!jobOffer) {
-        throw new NotFoundException('Job offer not found');
-      }
-  
-      return jobOffer;
-    } catch (error) {
-      throw new NotFoundException('Job offer not found');
-    }
+    return (await this.getJobOfferById(id)) as JobOfferDocument;
+  }
+
+  async findOnePublic(id: string): Promise<JobOffer> {
+    return (await this.getJobOfferById(id, { lean: true })) as JobOffer;
   }
 
   // Update a job offer - checked 1
@@ -144,7 +194,8 @@ export class JobOffersService {
       if (!updatedJobOffer) {
         throw new NotFoundException('Job offer not found');
       }
-    
+      await this.clearJobOfferCaches([jobOfferCacheKeys.detail(id)]);
+
       return updatedJobOffer;
     } catch (error) {
       if (error.name === 'ValidationError') {
@@ -174,7 +225,9 @@ export class JobOffersService {
     try{
 
       jobOffer.status = status;
-      return await jobOffer.save();
+      const saved = await jobOffer.save();
+      await this.clearJobOfferCaches([jobOfferCacheKeys.detail(id)]);
+      return saved;
 
     }catch(error){
       throw new InternalServerErrorException('Failed to update job offer status');
@@ -193,6 +246,7 @@ export class JobOffersService {
 
     try {
       await this.jobOfferModel.findByIdAndDelete(id).exec();
+      await this.clearJobOfferCaches([jobOfferCacheKeys.detail(id)]);
     }catch(error){
       throw new InternalServerErrorException('Failed to delete job offer');
     }
@@ -210,7 +264,9 @@ export class JobOffersService {
     try{
       // Fixed: Use direct increment instead of calling non-existent method
       jobOffer.applicationsCount = (jobOffer.applicationsCount || 0) + 1;
-      return await jobOffer.save();
+      const saved = await jobOffer.save();
+      await this.clearJobOfferCaches([jobOfferCacheKeys.detail(id)]);
+      return saved;
     }catch(error){
       throw new InternalServerErrorException('Failed to increment applications count');
     }
@@ -218,7 +274,7 @@ export class JobOffersService {
 
   // Search job offers by text- checked 1
   async searchJobOffers(searchTerm: string, filters: JobOfferFiltersDto = {},pagination: PaginationOptionsDto = {} ): Promise<{
-    data: JobOfferDocument[];
+    data: JobOffer[];
     total: number;
     page: number;
     totalPages: number;
@@ -254,22 +310,44 @@ export class JobOffersService {
 
       const skip = (page - 1) * limit;
 
+      const cacheKey = jobOfferCacheKeys.search(searchTerm, searchFilters, {
+        page,
+        limit,
+        sortBy,
+        sortOrder,
+      });
+
+      const cached = await this.cacheManager.get<{
+        data: JobOffer[];
+        total: number;
+        page: number;
+        totalPages: number;
+      }>(cacheKey);
+      if (cached) {
+        return cached;
+      }
+
       const [data, total] = await Promise.all([
         this.jobOfferModel
           .find(searchFilters)
           .sort(sortOptions)
           .skip(skip)
           .limit(limit)
+          .lean()
           .exec(),
-        this.jobOfferModel.countDocuments(searchFilters)
+        this.jobOfferModel.countDocuments(searchFilters),
       ]);
 
-      return {
+      const payload = {
         data,
         total,
         page,
-        totalPages: Math.ceil(total / limit)
+        totalPages: Math.ceil(total / limit),
       };
+
+      await this.cacheManager.set(cacheKey, payload, this.cacheTtlSeconds);
+
+      return payload;
     }catch(error){
       console.log(error);
       throw new InternalServerErrorException('Failed to search job offers');
@@ -288,6 +366,19 @@ export class JobOffersService {
   }> {
 
     const employerObjectId = new Types.ObjectId(employerId);
+    const cacheKey = jobOfferCacheKeys.stats(employerId);
+
+    const cached = await this.cacheManager.get<{
+      total: number;
+      active: number;
+      closed: number;
+      expired: number;
+      draft: number;
+      totalApplications: number;
+    }>(cacheKey);
+    if (cached) {
+      return cached;
+    }
 
     // Use MongoDB aggregation to calculate statistics for the employer
     const stats = await this.jobOfferModel.aggregate([
@@ -311,22 +402,32 @@ export class JobOffersService {
       }
     ]);
     // Return the aggregated statistics or default values if none found
-    return stats[0] || {
-      total: 0,
-      active: 0,
-      closed: 0,
-      expired: 0,
-      draft: 0,
-      totalApplications: 0
-    };
+    const payload =
+      stats[0] || {
+        total: 0,
+        active: 0,
+        closed: 0,
+        expired: 0,
+        draft: 0,
+        totalApplications: 0
+      };
+
+    await this.cacheManager.set(cacheKey, payload, this.cacheTtlSeconds);
+    return payload;
   }
 
   // Get job offers that are expiring soon (within specified days)
-  async getExpiringSoon( employerId: string, days: number = 7 ): Promise<JobOfferDocument[]> {
+  async getExpiringSoon(employerId: string, days: number = 7): Promise<JobOffer[]> {
     try{
       // Create a future date X days from today
       const futureDate = new Date();
       futureDate.setDate(futureDate.getDate() + days);
+
+      const cacheKey = jobOfferCacheKeys.expiring(employerId, days);
+      const cached = await this.cacheManager.get<JobOffer[]>(cacheKey);
+      if (cached) {
+        return cached;
+      }
       
       // Find job offers for the employer that are active and will expire within X days
       const jobs = await this.jobOfferModel
@@ -339,7 +440,10 @@ export class JobOffersService {
           }
         })
         .sort({ deadline: 1 }) // Sort offers by closest deadline first
+        .lean()
         .exec();
+
+      await this.cacheManager.set(cacheKey, jobs, this.cacheTtlSeconds);
 
       return jobs;
     }catch(error){
@@ -357,9 +461,14 @@ export class JobOffersService {
       { status: 'expired' }
     );
 
+    if (result.modifiedCount > 0) {
+      await this.clearJobOfferCaches();
+    }
+
     return result.modifiedCount;
   }
 
+ 
   // Get job offers analytics
   async getAnalytics(employerId?: string): Promise<{
     totalJobs: number;
@@ -370,11 +479,24 @@ export class JobOffersService {
     jobTypeDistribution: Array<{ type: string; count: number }>;
     workPlaceTypeDistribution: Array<{ type: string; count: number }>;
   }> {
-    
-    try{
-        const matchStage = employerId 
+    try {
+      const matchStage = employerId
         ? { $match: { employerId: new Types.ObjectId(employerId) } }
         : { $match: {} };
+      const cacheKey = jobOfferCacheKeys.analytics(employerId);
+
+      const cached = await this.cacheManager.get<{
+        totalJobs: number;
+        activeJobs: number;
+        totalApplications: number;
+        averageSalary: { min: number; max: number };
+        topSkills: Array<{ skill: string; count: number }>;
+        jobTypeDistribution: Array<{ type: string; count: number }>;
+        workPlaceTypeDistribution: Array<{ type: string; count: number }>;
+      }>(cacheKey);
+      if (cached) {
+        return cached;
+      }
 
       const analytics = await this.jobOfferModel.aggregate([
         matchStage,
@@ -385,20 +507,20 @@ export class JobOffersService {
                 $group: {
                   _id: null,
                   totalJobs: { $sum: 1 },
-                  activeJobs: { $sum: { $cond: [{ $eq: ['$status', 'مفتوح'] }, 1, 0] } },
+                  activeJobs: { $sum: { $cond: [{ $eq: ['$status', '??????????'] }, 1, 0] } },
                   totalApplications: { $sum: '$applicationsCount' },
                   avgMinSalary: { $avg: '$salaryRange.min' },
-                  avgMaxSalary: { $avg: '$salaryRange.max' }
-                }
-              }
+                  avgMaxSalary: { $avg: '$salaryRange.max' },
+                },
+              },
             ],
             topSkills: [
               { $unwind: '$skillsRequired' },
               {
                 $group: {
                   _id: '$skillsRequired',
-                  count: { $sum: 1 }
-                }
+                  count: { $sum: 1 },
+                },
               },
               { $sort: { count: -1 } },
               { $limit: 10 },
@@ -406,59 +528,61 @@ export class JobOffersService {
                 $project: {
                   skill: '$_id',
                   count: 1,
-                  _id: 0
-                }
-              }
+                  _id: 0,
+                },
+              },
             ],
             jobTypeDistribution: [
               {
                 $group: {
                   _id: '$jobType',
-                  count: { $sum: 1 }
-                }
+                  count: { $sum: 1 },
+                },
               },
               {
                 $project: {
                   type: '$_id',
                   count: 1,
-                  _id: 0
-                }
-              }
+                  _id: 0,
+                },
+              },
             ],
             workPlaceTypeDistribution: [
               {
                 $group: {
                   _id: '$workPlaceType',
-                  count: { $sum: 1 }
-                }
+                  count: { $sum: 1 },
+                },
               },
               {
                 $project: {
                   type: '$_id',
                   count: 1,
-                  _id: 0
-                }
-              }
-            ]
-          }
-        }
+                  _id: 0,
+                },
+              },
+            ],
+          },
+        },
       ]);
 
       const result = analytics[0];
-      
-      return {
+      const payload = {
         totalJobs: result.totalStats[0]?.totalJobs || 0,
         activeJobs: result.totalStats[0]?.activeJobs || 0,
         totalApplications: result.totalStats[0]?.totalApplications || 0,
         averageSalary: {
           min: result.totalStats[0]?.avgMinSalary || 0,
-          max: result.totalStats[0]?.avgMaxSalary || 0
+          max: result.totalStats[0]?.avgMaxSalary || 0,
         },
         topSkills: result.topSkills || [],
         jobTypeDistribution: result.jobTypeDistribution || [],
-        workPlaceTypeDistribution: result.workPlaceTypeDistribution || []
+        workPlaceTypeDistribution: result.workPlaceTypeDistribution || [],
       };
-    }catch(error){
+
+      await this.cacheManager.set(cacheKey, payload, this.cacheTtlSeconds);
+      return payload;
+    } catch (error) {
       console.log(error);
       throw new InternalServerErrorException('Failed to generate job analytics');
     }

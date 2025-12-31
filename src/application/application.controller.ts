@@ -17,7 +17,7 @@ import { ClientKafka, EventPattern, MessagePattern, Payload } from '@nestjs/micr
 import { ApplicationFiltersDto } from './dto/applicationFilters.dto';
 import { PaginationOptionsDto } from './dto/pagination.dto';
 import {UpdateApplicationStatusDto} from './dto/update-application.dot'
-import { ApplicationDocument } from './entity/application.entity';
+import { Application } from './entity/application.entity';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '../auth/enums/role.enums';
 import { RolesGuard } from '../auth/guards/roles/roles.guard';
@@ -61,7 +61,7 @@ export class ApplicationController {
   
   @ApiParam({ name: 'id', description: 'application ID', type: 'string' })
   @Get(':id')
-  async findOne(@Param('id') id: string): Promise<ApplicationDocument> {
+  async findOne(@Param('id') id: string): Promise<Application> {
     return this.applicationService.findOne(id);
   }
 

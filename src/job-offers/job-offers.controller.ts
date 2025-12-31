@@ -10,8 +10,11 @@ import {
   Query,
   HttpStatus, 
   HttpCode,
-  UseGuards
+  UseGuards,
+  UseInterceptors,
+  ExecutionContext
 } from '@nestjs/common';
+import { CacheInterceptor, CacheKey } from '@nestjs/cache-manager';
 import { ApiBearerAuth, ApiBody, ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiTags, ApiResponse,ApiParam, ApiQuery } from '@nestjs/swagger';
 import { JobOffersService } from './job-offers.service';
 import { CreateJobOfferDto } from './dto/create-job-offer.dto';
@@ -21,6 +24,7 @@ import { PaginationOptionsDto } from './dto/pagination.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '../auth/enums/role.enums';
 import { RolesGuard } from '../auth/guards/roles/roles.guard';
+import { jobOfferCacheKeys } from '../cache/cache.utils';
 
 
 
@@ -147,8 +151,13 @@ export class JobOffersController {
   // Get single job offer by ID (Public) - checked2
   @ApiParam({ name: 'id', description: 'job offer ID', type: 'string' })
   @Get(':id')
+  @UseInterceptors(CacheInterceptor)
+  @CacheKey((ctx: ExecutionContext) => {
+    const request = ctx.switchToHttp().getRequest();
+    return jobOfferCacheKeys.detail(request.params.id);
+  })
   async findOne(@Param('id') id: string) {
-    return this.jobOffersService.findOne(id);
+    return this.jobOffersService.findOnePublic(id);
   }
 
   // Update job offer (Employer/Admin only) - checked2

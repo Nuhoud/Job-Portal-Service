@@ -1,7 +1,8 @@
 import { Injectable,Inject, InternalServerErrorException,NotFoundException, ConflictException } from '@nestjs/common';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { ClientKafka,Payload } from '@nestjs/microservices';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Mongoose, Types } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { ApplicationDocument,Application } from './entity/application.entity';
 import { CreateApplicationDto } from './dto/create-application.dto';
 import { JobOffersService } from '../job-offers/job-offers.service';
@@ -10,15 +11,51 @@ import { PaginationOptionsDto } from './dto/pagination.dto';
 import {UpdateApplicationStatusDto} from './dto/update-application.dot'
 import { firstValueFrom } from 'rxjs';
 import { JobOfferDocument } from '../job-offers/entities/job-offer.entity';
+import { Cache } from 'cache-manager';
+import { applicationCacheKeys, DEFAULT_CACHE_TTL_MS } from '../cache/cache.utils';
+import { ConfigService } from '@nestjs/config';
 
 
 @Injectable()
 export class ApplicationService {
+    private readonly cacheTtlSeconds: number;
+
     constructor(
         @InjectModel(Application.name) private ApplicationModel: Model<ApplicationDocument>,
         @Inject('KAFKA_SERVICE') private readonly kafkaClient: ClientKafka,
         private jobOffersService: JobOffersService,
-    ) {}
+        @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
+        private readonly configService: ConfigService,
+    ) {
+        this.cacheTtlSeconds = Number(
+            this.configService.get('CACHE_TTL_MS') ?? DEFAULT_CACHE_TTL_MS,
+        );
+    }
+
+    private async clearApplicationCaches(extraKeys: string[] = []) {
+        const cacheAny = this.cacheManager as any;
+        const store: { keys?: () => Promise<string[]> } | undefined =
+            cacheAny?.store ?? cacheAny?.stores?.[0];
+        const keysToClear = new Set<string>(extraKeys.filter(Boolean));
+
+        if (store?.keys) {
+            try {
+                const cachedKeys = await store.keys();
+                cachedKeys
+                    .filter((key: string) => key.startsWith('applications:'))
+                    .forEach((key: string) => keysToClear.add(key));
+            } catch {
+                // ignore key enumeration errors
+            }
+        }
+
+        if (keysToClear.size === 0) {
+            await this.cacheManager.clear();
+            return;
+        }
+
+        await Promise.all(Array.from(keysToClear).map((key) => this.cacheManager.del(key)));
+    }
 
     async sendKafkaEvent( topicName:string , value :any){
         await firstValueFrom(
@@ -87,6 +124,7 @@ export class ApplicationService {
                 userSnap
             });
             await application.save();
+            await this.clearApplicationCaches();
             // incrementApplicationsCount
             await this.jobOffersService.incrementApplicationsCount(jobOfferId);
             // maybe we can do something like push notification later
@@ -101,7 +139,7 @@ export class ApplicationService {
     }
 
     async findAll( filters: ApplicationFiltersDto = {}, pagination: PaginationOptionsDto = {}): Promise<{
-        data: ApplicationDocument[];
+        data: Application[];
         total: number;
         page: number;
         totalPages: number; }> 
@@ -114,14 +152,23 @@ export class ApplicationService {
             sortOrder = 'desc'
         } = pagination;
 
-        // create MongoDB query based on the filters
         const query = this.buildFilterQuery(filters);
-
-
-        const sortOptions: any = {};
-        sortOptions[sortBy] = sortOrder === 'desc' ? -1 : 1;
-
+        const sortOptions: Record<string, 1 | -1> = {
+            [sortBy]: sortOrder === 'desc' ? -1 : 1,
+        };
         const skip = (page - 1) * limit;
+        const cacheKey = applicationCacheKeys.list(query, { page, limit, sortBy, sortOrder });
+
+        const cached = await this.cacheManager.get<{
+            data: Application[];
+            total: number;
+            page: number;
+            totalPages: number;
+        }>(cacheKey);
+        if (cached) {
+            return cached;
+        }
+
         try{
             const [data, total] = await Promise.all([
                 this.ApplicationModel
@@ -129,16 +176,20 @@ export class ApplicationService {
                   .sort(sortOptions)
                   .skip(skip)
                   .limit(limit)
+                  .lean()
                   .exec(),
-                this.ApplicationModel.countDocuments()
+                this.ApplicationModel.countDocuments(query)
             ]);
             
-            return {
+            const payload = {
                 data,
                 total,
                 page,
                 totalPages: Math.ceil(total / limit)
             };
+
+            await this.cacheManager.set(cacheKey, payload, this.cacheTtlSeconds);
+            return payload;
         }catch(error){
             throw new InternalServerErrorException('Failed to fetch applications');
         }
@@ -147,7 +198,7 @@ export class ApplicationService {
     // find all apllication that applied to one Job offer by the job offer id
     async findAllByJobOfferId(jobOfferId: string, pagination: PaginationOptionsDto = {},
         ): Promise<{
-        data: ApplicationDocument[];
+        data: Application[];
         total: number;
         page: number;
         totalPages: number;
@@ -164,6 +215,16 @@ export class ApplicationService {
         };
 
         const skip = (page - 1) * limit;
+        const cacheKey = applicationCacheKeys.byJob(jobOfferId, { page, limit, sortBy, sortOrder });
+        const cached = await this.cacheManager.get<{
+            data: Application[];
+            total: number;
+            page: number;
+            totalPages: number;
+        }>(cacheKey);
+        if (cached) {
+            return cached;
+        }
 
         const filter = { jobOfferId };
 
@@ -172,21 +233,25 @@ export class ApplicationService {
             .sort(sortOptions)
             .skip(skip)
             .limit(limit)
+            .lean()
             .exec(),
             this.ApplicationModel.countDocuments(filter),
         ]);
 
-        return {
+        const payload = {
             data,
             total,
             page,
-            totalPages: Math.ceil(total / limit) || 1, // تضمن دائمًا قيمة >= 1
+            totalPages: Math.ceil(total / limit) || 1,
         };
+
+        await this.cacheManager.set(cacheKey, payload, this.cacheTtlSeconds);
+        return payload;
     }
 
     // find all applications belongs to one user by the user id
     async findAllByUserId(userId:string,pagination: PaginationOptionsDto = {}): Promise<{
-        data: ApplicationDocument[];
+        data: Application[];
         total: number;
         page: number;
         totalPages: number; }> 
@@ -197,41 +262,62 @@ export class ApplicationService {
             sortBy = 'postedAt',
             sortOrder = 'desc'
         } = pagination;
-        //console.log(userId);
-        const sortOptions: any = {};
-        sortOptions[sortBy] = sortOrder === 'desc' ? -1 : 1;
+        const sortOptions: Record<string, 1 | -1> = {
+            [sortBy]: sortOrder === 'desc' ? -1 : 1,
+        };
 
         const skip = (page - 1) * limit;
+        const cacheKey = applicationCacheKeys.byUser(userId, { page, limit, sortBy, sortOrder });
+        const cached = await this.cacheManager.get<{
+            data: Application[];
+            total: number;
+            page: number;
+            totalPages: number;
+        }>(cacheKey);
+        if (cached) {
+            return cached;
+        }
+
         try{
+            const filter = { userId: userId };
             const [data, total] = await Promise.all([
                 this.ApplicationModel
-                  .find({userId:userId})
+                  .find(filter)
                   .sort(sortOptions)
                   .skip(skip)
                   .limit(limit)
+                  .lean()
                   .exec(),
-                  this.ApplicationModel.countDocuments({ userId: userId })
+                  this.ApplicationModel.countDocuments(filter)
             ]);
-            //console.log(data);
-            return {
+            const payload = {
                 data,
                 total,
                 page,
                 totalPages: Math.ceil(total / limit)
             };
+            await this.cacheManager.set(cacheKey, payload, this.cacheTtlSeconds);
+            return payload;
         }catch(error){
             throw new NotFoundException('Applications not found');
         }
     }
 
     // find one Application Data
-    async findOne(id: string): Promise<ApplicationDocument> {
+    async findOne(id: string): Promise<Application> {
+        const cacheKey = applicationCacheKeys.detail(id);
+        const cached = await this.cacheManager.get<Application>(cacheKey);
+        if (cached) {
+            return cached;
+        }
+
         try{
-            const application = await this.ApplicationModel.findById(id).exec();
+            const application = await this.ApplicationModel.findById(id).lean().exec();
             if(!application){
                 throw new NotFoundException('Application not found');
             }
-            return application;
+            await this.cacheManager.set(cacheKey, application, this.cacheTtlSeconds);
+            return application as Application;
         }catch(error){
             throw new NotFoundException('Application not found');
         }
@@ -240,6 +326,7 @@ export class ApplicationService {
     async remove(id: string): Promise<void> {
         try{
             await this.ApplicationModel.findByIdAndDelete(id).exec();
+            await this.clearApplicationCaches([applicationCacheKeys.detail(id)]);
         }catch(error){
             throw new NotFoundException('Application not found');
         }
@@ -257,6 +344,7 @@ export class ApplicationService {
             await application.save();
 
             await this.sendKafkaEvent('job.application.statusChange', application.toObject());
+            await this.clearApplicationCaches([applicationCacheKeys.detail(id)]);
 
             return application;
         }catch(error){
