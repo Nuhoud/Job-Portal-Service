@@ -324,6 +324,7 @@ export class JobOffersService {
         totalPages: number;
       }>(cacheKey);
       if (cached) {
+        console.log(' Returning cached search results');
         return cached;
       }
 

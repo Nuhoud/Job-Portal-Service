@@ -8,7 +8,9 @@ dotenv.config();
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  app.enableCors();
+  app.enableCors({
+    origin: '*',
+  });
   // Enable global pipes
   // Toggling the global pipes for validation and transformation across the app
   app.useGlobalPipes(...GlobalPipes);
@@ -35,6 +37,6 @@ async function bootstrap() {
     console.log('Kafka connection failed, continuing without it');
   }
 
-  await app.listen(process.env.PORT ?? 4000);
+  await app.listen(process.env.PORT ?? 4000, '0.0.0.0');
 }
 bootstrap();

@@ -19,16 +19,31 @@ dotenv.config();
       isGlobal: true,
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: async (configService: ConfigService) => ({
-        store: await redisStore({
-          socket: {
-            host: configService.get<string>('REDIS_HOST', 'localhost'),
-            port: configService.get<number>('REDIS_PORT', 6379),
-          },
-          password: configService.get<string>('REDIS_PASSWORD'),
-          ttl: configService.get<number>('CACHE_TTL_MS', 120),
-        }),
-      }),
+      useFactory: async (configService: ConfigService) => {
+        const ttl = configService.get<number>('CACHE_TTL_MS', 120);
+        const redisEnabled =
+          configService.get<string>('REDIS_ENABLED', 'true')?.toLowerCase() !== 'false';
+
+        if (!redisEnabled) {
+          return { ttl };
+        }
+
+        try {
+          const store = await redisStore({
+            socket: {
+              host: configService.get<string>('REDIS_HOST', 'localhost'),
+              port: configService.get<number>('REDIS_PORT', 6379),
+            },
+            password: configService.get<string>('REDIS_PASSWORD'),
+            ttl,
+          });
+
+          return { store, ttl };
+        } catch {
+          console.warn('[Cache] Redis unavailable, falling back to in-memory cache.');
+          return { ttl };
+        }
+      },
     }),
     JwtModule.register({
       global: true,
